@@ -11,6 +11,8 @@ func _ready() -> void:
 	_test_event_bus_contract()
 	_test_settings_round_trip()
 	_test_scene_transition_contract()
+	_test_player_motor_frame_independence()
+	await _test_player_scene_contract()
 	await _test_main_menu_layout()
 	_finish()
 
@@ -18,11 +20,12 @@ func _ready() -> void:
 func _test_project_resources() -> void:
 	_assert_true(ResourceLoader.exists("res://scenes/main/main.tscn"), "main scene exists")
 	_assert_true(ResourceLoader.exists("res://scenes/main/game.tscn"), "game scene exists")
+	_assert_true(ResourceLoader.exists("res://scenes/player/player.tscn"), "player scene exists")
 	_assert_true(ResourceLoader.exists("res://assets/branding/icon.svg"), "application icon exists")
 
 
 func _test_version_contract() -> void:
-	_assert_equal(GameVersion.VERSION, "0.1.0", "version constant")
+	_assert_equal(GameVersion.VERSION, "0.2.0", "version constant")
 	_assert_true(GameVersion.SAVE_VERSION >= 1, "save version initialized")
 	_assert_true(GameVersion.GENERATION_VERSION >= 1, "generation version initialized")
 
@@ -44,6 +47,31 @@ func _test_settings_round_trip() -> void:
 func _test_scene_transition_contract() -> void:
 	_assert_true(ResourceLoader.exists(GameManager.MAIN_MENU_SCENE), "manager main scene path")
 	_assert_true(ResourceLoader.exists(GameManager.GAME_SCENE), "manager game scene path")
+
+
+func _test_player_motor_frame_independence() -> void:
+	var direction := Vector2(1.0, 0.35)
+	var at_30 := PlayerMotor.integrated_distance(direction, false, 30, 1.0)
+	var at_60 := PlayerMotor.integrated_distance(direction, false, 60, 1.0)
+	var at_120 := PlayerMotor.integrated_distance(direction, false, 120, 1.0)
+	_assert_true(at_30.is_equal_approx(at_60) and at_60.is_equal_approx(at_120), "movement is frame-rate independent at 30/60/120 FPS")
+	_assert_true(is_equal_approx(PlayerMotor.velocity_for(Vector2.ONE, false).length(), PlayerMotor.WALK_SPEED), "diagonal movement is normalized")
+	_assert_true(PlayerMotor.velocity_for(Vector2.RIGHT, true).length() > PlayerMotor.velocity_for(Vector2.RIGHT, false).length(), "run speed exceeds walk speed")
+
+
+func _test_player_scene_contract() -> void:
+	var player := (load("res://scenes/player/player.tscn") as PackedScene).instantiate() as PlayerCharacter
+	add_child(player)
+	await get_tree().physics_frame
+	var collision := player.get_node_or_null("CollisionShape2D") as CollisionShape2D
+	var camera := player.get_node_or_null("Camera2D") as Camera2D
+	_assert_true(collision != null and collision.shape != null, "player has physical collision")
+	_assert_true(camera != null and camera.position_smoothing_enabled, "camera smoothing enabled")
+	player.take_damage(25.0)
+	_assert_equal(player.health, 75.0, "player damage updates health")
+	player.heal(10.0)
+	_assert_equal(player.health, 85.0, "player healing clamps correctly")
+	player.queue_free()
 
 
 func _test_main_menu_layout() -> void:

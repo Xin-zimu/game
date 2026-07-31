@@ -16,11 +16,15 @@ REQUIRED_PATHS = (
     "CHANGELOG.md",
     "scenes/main/main.tscn",
     "scenes/main/game.tscn",
+    "scenes/player/player.tscn",
     "scripts/core/event_bus.gd",
     "scripts/core/game_manager.gd",
     "scripts/core/settings_manager.gd",
     "scripts/core/log_manager.gd",
     "scripts/ui/ui_theme_factory.gd",
+    "scripts/main/world_sandbox.gd",
+    "scripts/player/player_character.gd",
+    "scripts/player/player_motor.gd",
     "assets/fonts/NotoSansCJKsc-ProjectSubset.otf",
     "tests/run_all.gd",
     "tests/test_runner.tscn",
@@ -39,8 +43,8 @@ def main() -> int:
             failures.append(f"autoload not registered: {autoload}")
 
     version_text = (ROOT / "scripts/core/game_version.gd").read_text(encoding="utf-8")
-    if 'const VERSION := "0.1.0"' not in version_text:
-        failures.append("game version is not 0.1.0")
+    if 'const VERSION := "0.2.0"' not in version_text:
+        failures.append("game version is not 0.2.0")
 
     if failures:
         print("Structural verification failed:")

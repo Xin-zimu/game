@@ -28,11 +28,18 @@ func _process(delta: float) -> void:
 func _update_text() -> void:
 	if _label == null:
 		return
-	_label.text = "INFINITE FRONTIER  v%s\nFPS  %d\nSCENE  %s\nMEM  %.1f MB" % [
+	var player_line := ""
+	var player := get_tree().get_first_node_in_group("player")
+	if player != null and player.has_method("debug_snapshot"):
+		var snapshot: Dictionary = player.debug_snapshot()
+		var player_position: Vector2 = snapshot["position"]
+		player_line = "\nPLAYER  %d, %d  %s" % [player_position.x, player_position.y, snapshot["state"]]
+	_label.text = "INFINITE FRONTIER  v%s\nFPS  %d\nSCENE  %s\nMEM  %.1f MB%s" % [
 		GameVersion.VERSION,
 		Engine.get_frames_per_second(),
 		get_tree().current_scene.name if get_tree().current_scene else "Boot",
 		Performance.get_monitor(Performance.MEMORY_STATIC) / 1048576.0,
+		player_line,
 	]
 
 

@@ -8,6 +8,9 @@ signal scene_changed(scene_path: String)
 signal settings_changed(key: StringName, value: Variant)
 signal notification_requested(message: String, severity: StringName)
 signal debug_visibility_changed(visible: bool)
+signal player_health_changed(current: float, maximum: float)
+signal player_stamina_changed(current: float, maximum: float)
+signal player_state_changed(state_name: StringName)
 
 
 func request_scene(scene_path: String) -> void:
