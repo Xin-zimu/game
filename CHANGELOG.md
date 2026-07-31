@@ -2,6 +2,24 @@
 
 All notable changes are recorded here. Version numbers follow the staged project plan.
 
+## [0.3.0] - 2026-07-31
+
+### Added
+
+- Stable SHA-256-based 64-bit text seeds, numeric seeds and domain-derived seeds.
+- Signed world-tile, 32×32 chunk, local-tile and pixel coordinate conversion.
+- Pure `ChunkData` generation independent of scene-tree state and request order.
+- Multi-scale FastNoiseLite elevation using continental, elevation and detail fields.
+- Deep-water, shallow-water, beach and land classification with isolated-cell cleanup.
+- Programmatic pixel atlas rendered through one `TileMapLayer`.
+- Deterministic regeneration, terrain/noise debug toggle and generation HUD.
+- Restart, ordering, negative-coordinate, exact-byte and isolated-cell regression tests.
+
+### Fixed
+
+- Replaced the all-land showcase coordinate with a stable negative-coordinate coastline fixture.
+- Applied global-neighborhood majority cleanup to remove isolated shallow-water cells.
+
 ## [0.2.0] - 2026-07-31
 
 ### Added
