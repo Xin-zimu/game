@@ -1,0 +1,54 @@
+name: Tag validated stable version
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - scripts/core/game_version.gd
+      - releases/**/TEST-REPORT-*.md
+      - .github/workflows/tag-stable-version.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out validated source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate release gate and create tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(sed -n 's/^const VERSION := "\([0-9][0-9.]*\)"/\1/p' scripts/core/game_version.gd)"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid version in game_version.gd: $version" >&2
+            exit 1
+          fi
+
+          tag="v${version}"
+          report="releases/${tag}/TEST-REPORT-${tag}.md"
+          if [[ ! -f "$report" ]]; then
+            echo "Missing release report: $report" >&2
+            exit 1
+          fi
+          if ! grep -Fq 'Status: **PASS**' "$report"; then
+            echo "Release report has not passed: $report" >&2
+            exit 1
+          fi
+
+          if git rev-parse "$tag" >/dev/null 2>&1; then
+            echo "$tag already exists; leaving the immutable tag unchanged."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$tag" -m "Infinite Frontier ${tag} - validated stable release"
+          git push origin "$tag"
+

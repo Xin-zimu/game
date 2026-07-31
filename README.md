@@ -14,6 +14,8 @@
 | 差异存档 | 仅保存玩家造成的永久变化 |
 | 逐版验收 | 每一版本都具有测试、审查、构建和 Git Tag |
 
+Stable tags are created by the repository release gate only when the matching test report is marked `PASS`; existing tags are never moved.
+
 ## V0.1.0 已包含
 
 - Godot 4.7.1 工程与标准目录结构
