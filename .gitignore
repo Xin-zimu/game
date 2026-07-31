@@ -1,0 +1,11 @@
+.godot/
+.import/
+build/
+dist/
+*.tmp
+*.log
+*.zip
+*.pck
+*.exe
+*.import
+override.cfg
