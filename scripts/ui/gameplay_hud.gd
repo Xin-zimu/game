@@ -20,7 +20,8 @@ func _ready() -> void:
 func _process(_delta: float) -> void:
 	var player := get_tree().get_first_node_in_group("player") as Node2D
 	if player != null:
-		_coordinate_label.text = "坐标  X %d   Y %d" % [roundi(player.global_position.x), roundi(player.global_position.y)]
+		var world_tile := WorldCoordinates.world_pixel_to_tile(player.global_position)
+		_coordinate_label.text = "世界格  X %d   Y %d" % [world_tile.x, world_tile.y]
 
 
 func _build_hud() -> void:
@@ -51,7 +52,7 @@ func _build_hud() -> void:
 	_state_label.add_theme_color_override("font_color", Color("8fd0a6"))
 	info.add_child(_state_label)
 	_coordinate_label = Label.new()
-	_coordinate_label.text = "坐标  X 0   Y 0"
+	_coordinate_label.text = "世界格  X 0   Y 0"
 	_coordinate_label.add_theme_color_override("font_color", Color("8fa79b"))
 	info.add_child(_coordinate_label)
 	var hints := Label.new()
@@ -60,7 +61,7 @@ func _build_hud() -> void:
 	hints.offset_right = -260
 	hints.offset_top = -52
 	hints.offset_bottom = -18
-	hints.text = "WASD 移动  ·  Shift 奔跑  ·  Space 翻滚  ·  Esc 返回"
+	hints.text = "WASD 移动 · Shift 奔跑 · Space 翻滚 · R 重新生成 · N 噪声视图 · Esc 返回"
 	hints.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hints.add_theme_font_size_override("font_size", 15)
 	hints.add_theme_color_override("font_color", Color("dce9df"))
