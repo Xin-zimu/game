@@ -10,13 +10,6 @@
     {"id": "axe", "display_name": "斧头", "power": 1},
     {"id": "pickaxe", "display_name": "镐子", "power": 1}
   ],
-  "items": [
-    {"id": "wood", "display_name": "木材", "color": "b97845"},
-    {"id": "stone", "display_name": "石料", "color": "9aa1a0"},
-    {"id": "fiber", "display_name": "纤维", "color": "79a85b"},
-    {"id": "wildflower", "display_name": "野花", "color": "e8a6c4"},
-    {"id": "berry", "display_name": "浆果", "color": "c94f69"}
-  ],
   "resources": [
     {
       "id": "tree",

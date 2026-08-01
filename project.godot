@@ -89,6 +89,14 @@ manual_save={
 "deadzone": 0.25,
 "events": [Object(InputEventKey,"ctrl_pressed":true,"physical_keycode":83)]
 }
+toggle_inventory={
+"deadzone": 0.25,
+"events": [Object(InputEventKey,"physical_keycode":73), Object(InputEventKey,"physical_keycode":4194308)]
+}
+inventory_sort={
+"deadzone": 0.25,
+"events": [Object(InputEventKey,"physical_keycode":82)]
+}
 
 [layer_names]
 

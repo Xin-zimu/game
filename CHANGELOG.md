@@ -2,6 +2,29 @@
 
 All notable changes are recorded here. Version numbers follow the staged project plan.
 
+## [0.8.0] - 2026-08-01
+
+### Added
+
+- Validated item-data catalog with stable unique IDs, material/food categories and per-item stack limits.
+- Pure 24-slot inventory model with deterministic stacking and an eight-slot hotbar view.
+- Drag swap/combine, right-click half split, exact discard and category-aware sort operations.
+- Inventory window, always-visible hotbar, selected-slot details and explicit full-inventory feedback.
+- Pickup transfer contract that leaves every unaccepted remainder in its original pooled ground drop.
+- Versioned slot-order persistence, byte-stable normalized snapshot checks and save-format-2 migration.
+
+### Changed
+
+- Save format advances from 2 to 3; generation remains format 4.
+- Item presentation data moved from the resource catalog into canonical `data/items.json` resources.
+- Player saves now store all 24 slots, stack quantities, hotbar size and selected hotbar index.
+- Project font subset expanded to every V0.8 runtime/data/test glyph.
+
+### Fixed
+
+- JSON numeric normalization now restores integer slot metadata and quantities exactly.
+- Full-inventory automatic pickup no longer deactivates a ground drop before capacity is accepted.
+
 ## [0.7.0] - 2026-08-01
 
 ### Added

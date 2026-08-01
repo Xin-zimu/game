@@ -16,6 +16,8 @@ func _ready() -> void:
 	_test_world_coordinate_contract()
 	_test_biome_catalog_contract()
 	_test_resource_catalog_contract()
+	_test_item_catalog_contract()
+	_test_inventory_model()
 	_test_deterministic_generation()
 	_test_biome_regions()
 	_test_resource_generation()
@@ -29,6 +31,7 @@ func _ready() -> void:
 	await _test_drop_pool()
 	await _test_generation_hud_layout()
 	await _test_resource_hud_layout()
+	await _test_inventory_panel_layout()
 	await _test_main_menu_layout()
 	_finish()
 
@@ -41,8 +44,8 @@ func _test_project_resources() -> void:
 
 
 func _test_version_contract() -> void:
-	_assert_equal(GameVersion.VERSION, "0.7.0", "version constant")
-	_assert_equal(GameVersion.SAVE_VERSION, 2, "save version incremented for the V0.7 format")
+	_assert_equal(GameVersion.VERSION, "0.8.0", "version constant")
+	_assert_equal(GameVersion.SAVE_VERSION, 3, "save version incremented for the V0.8 slot inventory format")
 	_assert_equal(GameVersion.GENERATION_VERSION, 4, "generation version incremented")
 
 
@@ -52,6 +55,7 @@ func _test_event_bus_contract() -> void:
 	_assert_true(EventBus.has_signal("notification_requested"), "notification signal exists")
 	_assert_true(EventBus.has_signal("resource_prompt_changed"), "resource prompt signal exists")
 	_assert_true(EventBus.has_signal("inventory_changed"), "inventory signal exists")
+	_assert_true(EventBus.has_signal("inventory_state_changed"), "slot inventory signal exists")
 	_assert_true(EventBus.has_signal("save_status_changed"), "save status signal exists")
 
 
@@ -123,6 +127,58 @@ func _test_resource_catalog_contract() -> void:
 	_assert_equal(catalog.required_tool_for_code(catalog.code_for_id(&"rock")), &"pickaxe", "rocks require a pickaxe")
 	_assert_true(catalog.candidate_code_for_biome(&"deep_ocean", 0.0) < 0, "deep ocean has no resource rule")
 	_assert_true(catalog.drop_pool_capacity() == 32 and catalog.max_resources_per_chunk() == 128, "resource and drop limits come from configuration")
+
+
+func _test_item_catalog_contract() -> void:
+	var catalog := ItemCatalog.new()
+	_assert_true(catalog.is_valid(), "external item configuration loads and validates")
+	_assert_equal(catalog.slot_count(), 24, "inventory capacity is data-driven at 24 slots")
+	_assert_equal(catalog.hotbar_slot_count(), 8, "hotbar exposes the first eight inventory slots")
+	var ids := catalog.item_ids()
+	_assert_equal(ids.size(), 5, "item catalog contains five unique V0.8 item IDs")
+	for item_id in ItemCatalog.REQUIRED_ITEM_IDS:
+		_assert_true(ids.has(StringName(item_id)), "item catalog contains stable unique ID %s" % item_id)
+	_assert_equal(catalog.category_name(&"wood"), "材料", "wood exposes its item category")
+	_assert_equal(catalog.category_name(&"berry"), "食物", "berry exposes its item category")
+	_assert_true(catalog.maximum_stack(&"wood") == 50 and catalog.maximum_stack(&"berry") == 20, "stack limits come from item data resources")
+
+
+func _test_inventory_model() -> void:
+	var inventory := InventoryModel.new()
+	var wood_result := inventory.add_item(&"wood", 55)
+	_assert_true(int(wood_result["accepted"]) == 55 and int(wood_result["remainder"]) == 0, "inventory accepts a quantity across stack boundaries")
+	_assert_true(int(inventory.slot(0)["quantity"]) == 50 and int(inventory.slot(1)["quantity"]) == 5, "wood stacks at its exact configured limit")
+	inventory.add_item(&"stone", 3)
+	var before_drag := inventory.count_snapshot()
+	_assert_true(inventory.move_or_swap(1, 2), "drag operation swaps unlike occupied stacks")
+	_assert_equal(inventory.count_snapshot(), before_drag, "drag swap preserves every item and quantity")
+	_assert_true(inventory.split_stack(0, 3), "right-click split moves half a stack to an empty slot")
+	_assert_true(int(inventory.slot(0)["quantity"]) == 25 and int(inventory.slot(3)["quantity"]) == 25, "stack split quantities are exact")
+	_assert_true(inventory.move_or_swap(2, 3), "dragging like items combines into available stack space")
+	_assert_equal(inventory.quantity(&"wood"), 55, "combine and split never duplicate or lose wood")
+	_assert_true(inventory.select_hotbar(7), "eighth hotbar slot can be selected")
+	var exact_snapshot := inventory.snapshot()
+	var exact_checksum := inventory.checksum()
+	var restored := InventoryModel.new()
+	_assert_true(restored.restore_snapshot(exact_snapshot), "versioned slot snapshot validates and restores")
+	_assert_equal(restored.snapshot(), exact_snapshot, "save/load restores identical slot order and quantities")
+	_assert_equal(restored.checksum(), exact_checksum, "save/load inventory checksum is byte-stable")
+	var removed := restored.discard(3, 7)
+	_assert_true(String(removed.get("item_id", "")) == "wood" and int(removed.get("quantity", 0)) == 7, "discard returns the exact removed item stack")
+	_assert_equal(restored.quantity(&"wood"), 48, "discard decrements the source without duplication")
+	var counts_before_sort := restored.count_snapshot()
+	restored.sort_inventory()
+	_assert_equal(restored.count_snapshot(), counts_before_sort, "inventory sort preserves all item totals")
+	var full_inventory := InventoryModel.new()
+	var fill_result := full_inventory.add_item(&"wood", 24 * 50)
+	var overflow := full_inventory.add_item(&"stone", 1)
+	_assert_true(int(fill_result["remainder"]) == 0 and bool(overflow["full"]) and int(overflow["remainder"]) == 1, "full inventory returns an explicit unaccepted remainder")
+	var invalid_snapshot := exact_snapshot.duplicate(true)
+	(invalid_snapshot["slots"] as Array)[0] = {"item_id": "wood", "quantity": 51}
+	_assert_true(not InventoryModel.new().restore_snapshot(invalid_snapshot), "invalid over-limit stack is rejected instead of silently coerced")
+	var migrated := InventoryModel.new()
+	_assert_true(migrated.restore_legacy_counts({"wood": 7, "stone": 3}), "V0.7 count dictionary migrates into V0.8 slots")
+	_assert_true(migrated.quantity(&"wood") == 7 and migrated.quantity(&"stone") == 3, "legacy migration preserves exact item totals")
 
 
 func _test_deterministic_generation() -> void:
@@ -300,14 +356,14 @@ func _test_save_system() -> void:
 	var root := SaveManager.current_world_root_absolute()
 	_assert_true(FileAccess.file_exists(root.path_join("world.json")) and FileAccess.file_exists(root.path_join("player.json")), "new world contains metadata and player documents")
 	var metadata := _read_json_for_test(root.path_join("world.json"))
-	_assert_equal(int(metadata.get("save_version", 0)), 2, "world metadata records save format 2")
+	_assert_equal(int(metadata.get("save_version", 0)), 3, "world metadata records save format 3")
 	_assert_equal(int(metadata.get("generation_version", 0)), 4, "world metadata records generation format 4")
 	_assert_equal(String(metadata.get("world_name", "")), "自动测试边境", "world metadata preserves the world name")
 	_assert_equal(String(metadata.get("seed_text", "")), "存档种子-070", "world metadata preserves the text seed")
 	var chunks_path := root.path_join("chunks/surface")
 	_assert_equal(_json_file_count(chunks_path), 0, "new unmodified world creates no chunk difference file")
 	var initial_player := SaveManager.loaded_player_snapshot()
-	var empty_state := {"collected_resources": [], "inventory": {}, "active_tool": "hands"}
+	var empty_state := {"collected_resources": [], "inventory": InventoryModel.new().snapshot(), "active_tool": "hands"}
 	_assert_true(SaveManager.request_save(initial_player, empty_state, 1.25, false), "automatic save request accepts an immutable snapshot")
 	SaveManager.flush_pending_save()
 	_assert_equal(_json_file_count(chunks_path), 0, "saving an unmodified world still creates no chunk difference file")
@@ -316,9 +372,13 @@ func _test_save_system() -> void:
 	player["health"] = 73.0
 	player["stamina"] = 41.0
 	var removed_keys := ["-1:-129:0", "33:65:1"]
+	var changed_inventory := InventoryModel.new()
+	changed_inventory.add_item(&"wood", 7)
+	changed_inventory.add_item(&"stone", 3)
+	var changed_inventory_snapshot := changed_inventory.snapshot()
 	var changed_state := {
 		"collected_resources": removed_keys,
-		"inventory": {"wood": 7, "stone": 3},
+		"inventory": changed_inventory_snapshot,
 		"active_tool": "axe",
 	}
 	var dispatch_started := Time.get_ticks_usec()
@@ -338,14 +398,38 @@ func _test_save_system() -> void:
 	var restored_world_state := SaveManager.loaded_world_state_snapshot()
 	var restored_removed := restored_world_state["collected_resources"] as Array
 	_assert_true(restored_removed.has(removed_keys[0]) and restored_removed.has(removed_keys[1]), "destroyed resources restore from chunk differences")
-	_assert_equal(int((restored_world_state["inventory"] as Dictionary).get("wood", 0)), 7, "V0.6 pickup counts restore as player attributes")
+	_assert_equal(restored_world_state["inventory"], changed_inventory_snapshot, "V0.8 slot order and stack quantities restore identically")
 	_assert_equal(String(restored_world_state["active_tool"]), "axe", "active tool restores with player attributes")
 	var restored_harvest := ResourceHarvestState.new()
-	restored_harvest.restore_snapshot(restored_removed, restored_world_state["inventory"] as Dictionary)
+	_assert_true(restored_harvest.restore_snapshot(restored_removed, restored_world_state["inventory"]), "restored inventory snapshot passes schema validation")
 	_assert_true(restored_harvest.collected_resources.has(removed_keys[0]), "restored collected key prevents a generated resource from reappearing")
+	_assert_true(restored_harvest.quantity(&"wood") == 7 and restored_harvest.quantity(&"stone") == 3, "restored inventory exposes exact item totals")
 	_assert_true(SaveManager.request_save(restored_player, restored_world_state, 44.0, true), "manual save requests a backup")
 	SaveManager.flush_pending_save()
 	_assert_true(_directory_count(root.path_join("backups")) >= 1, "manual save creates a recoverable backup directory")
+	var legacy_metadata := _read_json_for_test(root.path_join("world.json"))
+	legacy_metadata["save_version"] = 2
+	var legacy_player := _read_json_for_test(root.path_join("player.json"))
+	legacy_player["save_version"] = 2
+	legacy_player["inventory"] = {"wood": 7, "stone": 3}
+	_write_json_for_test(root.path_join("world.json"), legacy_metadata)
+	_write_json_for_test(root.path_join("player.json"), legacy_player)
+	var difference_directory := DirAccess.open(chunks_path)
+	for filename in difference_directory.get_files():
+		if filename.ends_with(".json"):
+			var legacy_difference := _read_json_for_test(chunks_path.path_join(filename))
+			legacy_difference["save_version"] = 2
+			_write_json_for_test(chunks_path.path_join(filename), legacy_difference)
+	SaveManager.clear_current_world()
+	_assert_true(SaveManager.load_world(world_id), "V0.7 save format loads through the explicit V0.8 migration path")
+	var migrated_state := SaveManager.loaded_world_state_snapshot()
+	var migrated_inventory := InventoryModel.new()
+	_assert_true(migrated_inventory.restore_snapshot(migrated_state["inventory"] as Dictionary), "migrated legacy counts produce a valid slot inventory")
+	_assert_true(migrated_inventory.quantity(&"wood") == 7 and migrated_inventory.quantity(&"stone") == 3, "save migration preserves legacy item totals exactly")
+	_assert_true(SaveManager.request_save(SaveManager.loaded_player_snapshot(), migrated_state, 45.0, false), "migrated world can be committed as save format 3")
+	SaveManager.flush_pending_save()
+	_assert_equal(int(_read_json_for_test(root.path_join("world.json")).get("save_version", 0)), 3, "next save commits migrated world metadata as format 3")
+	_assert_equal(int(_read_json_for_test(root.path_join("player.json")).get("save_version", 0)), 3, "next save commits migrated player inventory as format 3")
 	var corrupt_file := FileAccess.open(root.path_join("world.json"), FileAccess.WRITE)
 	corrupt_file.store_string("{broken save")
 	corrupt_file.flush()
@@ -462,6 +546,11 @@ func _test_drop_pool() -> void:
 	_assert_true(pool.spawn_drop(&"wood", 3, Vector2(12, 10)), "full pool merges a matching item stack")
 	_assert_equal(pool.active_count(), 2, "drop object count remains capped at pool capacity")
 	pool._process(0.25)
+	var blocked := pool.transfer_near(Vector2(10, 10), 24.0, func(_item_id: StringName, _quantity: int) -> int:
+		return 0
+	)
+	_assert_true((blocked["transferred"] as Array).is_empty() and not (blocked["blocked"] as Array).is_empty(), "full inventory refuses pickup explicitly")
+	_assert_equal(pool.active_quantity(&"wood"), 5, "refused pickup remains on the ground without loss or duplication")
 	var pickup := pool.collect_near(Vector2(10, 10), 24.0)
 	_assert_equal(pickup.size(), 1, "automatic pickup collects only nearby mature drops")
 	_assert_equal(int((pickup[0] as Dictionary)["quantity"]), 5, "merged drop stack preserves total quantity")
@@ -536,6 +625,31 @@ func _test_resource_hud_layout() -> void:
 	hud.queue_free()
 
 
+func _test_inventory_panel_layout() -> void:
+	var panel := InventoryPanel.new()
+	add_child(panel)
+	await get_tree().process_frame
+	var window := panel.find_child("InventoryWindow", true, false) as Control
+	var hotbar := panel.find_child("Hotbar", true, false) as Control
+	var grid := panel.find_child("InventoryGrid", true, false) as GridContainer
+	var split_button := panel.find_child("SplitStackButton", true, false) as Button
+	var discard_button := panel.find_child("DiscardItemButton", true, false) as Button
+	var sort_button := panel.find_child("SortInventoryButton", true, false) as Button
+	_assert_true(window != null and hotbar != null and grid != null, "inventory window, 8-slot hotbar and grid exist")
+	_assert_equal(panel.find_children("InventorySlot*", "", true, false).size(), 24, "inventory UI creates exactly 24 drag-capable slots")
+	_assert_equal(panel.find_children("HotbarSlot*", "", true, false).size(), 8, "hotbar UI mirrors exactly eight inventory slots")
+	_assert_true(split_button != null and discard_button != null and sort_button != null, "split, discard and category-sort controls exist")
+	panel.set_inventory_open(true)
+	await get_tree().process_frame
+	_assert_true(panel.is_inventory_open(), "inventory can be opened and captures its own UI state")
+	var viewport_rect := get_viewport().get_visible_rect()
+	_assert_true(viewport_rect.encloses(window.get_global_rect()), "open inventory window remains inside the 1280×720 viewport")
+	_assert_true(viewport_rect.encloses(hotbar.get_global_rect()), "always-visible hotbar remains inside the 1280×720 viewport")
+	panel.set_inventory_open(false)
+	_assert_true(not panel.is_inventory_open(), "inventory can close without changing gameplay state")
+	panel.queue_free()
+
+
 func _test_main_menu_layout() -> void:
 	var packed := load("res://scenes/main/main.tscn") as PackedScene
 	var menu_scene := packed.instantiate() as Control
@@ -562,6 +676,13 @@ func _read_json_for_test(path: String) -> Dictionary:
 		return {}
 	var parsed: Variant = JSON.parse_string(file.get_as_text())
 	return parsed as Dictionary if parsed is Dictionary else {}
+
+
+func _write_json_for_test(path: String, data: Dictionary) -> void:
+	var file := FileAccess.open(path, FileAccess.WRITE)
+	if file != null:
+		file.store_string(JSON.stringify(data, "\t", true, true) + "\n")
+		file.flush()
 
 
 func _json_file_count(path: String) -> int:

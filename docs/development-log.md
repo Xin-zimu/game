@@ -1,5 +1,28 @@
 # Development Log
 
+## V0.8.0 - Items and inventory
+
+- Added canonical item resources with stable IDs, categories, colors and stack limits.
+- Replaced bridge counts with a pure 24-slot model and eight-slot hotbar projection.
+- Added conservation-tested add, drag swap/combine, half split, exact discard and category sort operations.
+- Added the inventory window, hotbar, selection details and gameplay input integration.
+- Changed ground-drop pickup to an accepted-quantity transfer so full inventories leave remainders in place.
+- Advanced save format to 3 with normalized ordered-slot snapshots and explicit format-2 migration.
+- Expanded the suite from 177 to 227 passing tests, including checksum identity, overflow, migration and UI containment gates.
+
+### Iteration findings
+
+- JSON numbers parse as floating-point Variants. Schema validation alone was insufficient for strict dictionary equality, so load now reconstructs the inventory through `InventoryModel` and exposes an integer-normalized snapshot.
+- Deactivating a pooled drop before capacity validation can lose an overflow remainder. The pool now asks a receiver for the accepted quantity and decrements only that amount.
+- Duplicating item display data between resource and inventory catalogs risks diverging IDs. `data/items.json` is now canonical and the resource catalog delegates item lookups.
+
+### Decisions
+
+- Slots are ordered and persisted exactly because user hotbar organization is gameplay state.
+- The hotbar is a view of slots 0–7, not a second inventory, eliminating cross-container duplication paths.
+- Sorting consolidates by stable item ID and category order while proving total conservation in tests.
+- V0.8 introduces no recipes, workstations, durability-bearing tools or crafting unlocks; those remain V0.9 scope.
+
 ## V0.7.0 - Basic saves and chunk differences
 
 - Added a world-creation overlay with world name and stable text/numeric seed input.

@@ -7,6 +7,12 @@ BUILD_ROOT="${BUILD_ROOT:-$PROJECT_ROOT/build}"
 EXPECTED_VERSION="$(sed -n 's/^const VERSION := "\([^"]*\)"/\1/p' "$PROJECT_ROOT/scripts/core/game_version.gd")"
 RUNTIME_ROOT="$(mktemp -d /tmp/infinite-frontier-release.XXXXXX)"
 SMOKE_LOG="$RUNTIME_ROOT/linux-smoke.log"
+IF_BUILD_RUNTIME_DIR="${IF_BUILD_RUNTIME_DIR:-/tmp/infinite-frontier-godot-runtime}"
+
+mkdir -p "$IF_BUILD_RUNTIME_DIR/data" "$IF_BUILD_RUNTIME_DIR/config" "$IF_BUILD_RUNTIME_DIR/cache"
+export XDG_DATA_HOME="$IF_BUILD_RUNTIME_DIR/data"
+export XDG_CONFIG_HOME="$IF_BUILD_RUNTIME_DIR/config"
+export XDG_CACHE_HOME="$IF_BUILD_RUNTIME_DIR/cache"
 
 mkdir -p "$BUILD_ROOT/windows" "$BUILD_ROOT/linux"
 
