@@ -2,7 +2,7 @@
 
 ## Version
 
-- Game version: `0.6.0`
+- Game version: `0.7.0`
 - Generation version: `4`
 - Chunk size: `32×32` world tiles
 - Tile size: `32×32` display pixels

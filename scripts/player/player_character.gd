@@ -70,6 +70,26 @@ func debug_snapshot() -> Dictionary:
 	}
 
 
+func persistence_snapshot() -> Dictionary:
+	return {
+		"position": [global_position.x, global_position.y],
+		"health": health,
+		"maximum_health": maximum_health,
+		"stamina": stamina,
+		"maximum_stamina": maximum_stamina,
+	}
+
+
+func restore_snapshot(snapshot: Dictionary) -> void:
+	var position_value: Variant = snapshot.get("position", [])
+	if position_value is Array and (position_value as Array).size() == 2:
+		position = Vector2(float(position_value[0]), float(position_value[1]))
+	maximum_health = maxf(float(snapshot.get("maximum_health", maximum_health)), 1.0)
+	health = clampf(float(snapshot.get("health", maximum_health)), 0.0, maximum_health)
+	maximum_stamina = maxf(float(snapshot.get("maximum_stamina", maximum_stamina)), 1.0)
+	stamina = clampf(float(snapshot.get("stamina", maximum_stamina)), 0.0, maximum_stamina)
+
+
 func _process_standard_movement(delta: float) -> void:
 	var input_vector := Input.get_vector("move_left", "move_right", "move_up", "move_down")
 	if not input_vector.is_zero_approx():
