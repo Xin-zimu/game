@@ -15,8 +15,11 @@ func _ready() -> void:
 	_test_world_seed_contract()
 	_test_world_coordinate_contract()
 	_test_deterministic_generation()
+	_test_stream_planner()
+	_test_chunk_seams()
+	_test_background_generation()
 	await _test_player_scene_contract()
-	await _test_single_chunk_renderer()
+	await _test_chunk_renderer()
 	await _test_main_menu_layout()
 	_finish()
 
@@ -29,7 +32,7 @@ func _test_project_resources() -> void:
 
 
 func _test_version_contract() -> void:
-	_assert_equal(GameVersion.VERSION, "0.3.0", "version constant")
+	_assert_equal(GameVersion.VERSION, "0.4.0", "version constant")
 	_assert_true(GameVersion.SAVE_VERSION >= 1, "save version initialized")
 	_assert_equal(GameVersion.GENERATION_VERSION, 2, "generation version incremented")
 
@@ -127,16 +130,67 @@ func _test_deterministic_generation() -> void:
 	_assert_equal(isolated_tiles, 0, "coast cleanup removes isolated single-tile noise")
 
 
-func _test_single_chunk_renderer() -> void:
-	var renderer := SingleChunkRenderer.new()
+func _test_stream_planner() -> void:
+	var center := Vector2i(-12, 7)
+	_assert_equal(ChunkStreamPlanner.coordinates_in_radius(center, ChunkStreamPlanner.ACTIVE_RADIUS).size(), 25, "active radius contains at most 25 chunks")
+	_assert_equal(ChunkStreamPlanner.coordinates_in_radius(center, ChunkStreamPlanner.PRELOAD_RADIUS).size(), 49, "preload radius contains at most 49 chunks")
+	var ahead := center + Vector2i(3, 0)
+	var behind := center + Vector2i(-3, 0)
+	_assert_true(ChunkStreamPlanner.priority_score(ahead, center, Vector2i.RIGHT) < ChunkStreamPlanner.priority_score(behind, center, Vector2i.RIGHT), "movement direction receives queue priority")
+	var simulated_cache: Array[Vector2i] = []
+	var peak_cache := 0
+	for minute_step in 1800:
+		var simulated_center := Vector2i(minute_step - 900, -17)
+		for coordinate in ChunkStreamPlanner.coordinates_in_radius(simulated_center, ChunkStreamPlanner.PRELOAD_RADIUS):
+			if not simulated_cache.has(coordinate):
+				simulated_cache.append(coordinate)
+		simulated_cache = ChunkStreamPlanner.trim_to_cache_radius(simulated_cache, simulated_center)
+		peak_cache = maxi(peak_cache, simulated_cache.size())
+	_assert_true(peak_cache <= 81 and simulated_cache.size() <= 81, "30-minute traversal simulation keeps cache bounded to 9×9")
+
+
+func _test_chunk_seams() -> void:
+	var generator := TerrainGenerator.new(WorldSeed.from_text("无尽边境"))
+	var left_coordinate := Vector2i(-1, -4)
+	var right_coordinate := Vector2i(0, -4)
+	var left := generator.generate_chunk(left_coordinate)
+	var right := generator.generate_chunk(right_coordinate)
+	var seam_coordinates_correct := true
+	var samples_match_global_field := true
+	for y in WorldCoordinates.CHUNK_SIZE:
+		var left_world := WorldCoordinates.chunk_local_to_tile(left_coordinate, Vector2i(31, y))
+		var right_world := WorldCoordinates.chunk_local_to_tile(right_coordinate, Vector2i(0, y))
+		seam_coordinates_correct = seam_coordinates_correct and left_world + Vector2i.RIGHT == right_world
+		var left_expected := clampi(roundi(generator.elevation_at(left_world) * 255.0), 0, 255)
+		var right_expected := clampi(roundi(generator.elevation_at(right_world) * 255.0), 0, 255)
+		samples_match_global_field = samples_match_global_field and left.elevation_map[y * 32 + 31] == left_expected and right.elevation_map[y * 32] == right_expected
+	_assert_true(seam_coordinates_correct, "adjacent chunk border tiles are consecutive world coordinates")
+	_assert_true(samples_match_global_field, "both sides of a seam sample the same global noise field")
+	var original_checksum := left.checksum
+	generator.generate_chunk(Vector2i(120, -75))
+	_assert_equal(generator.generate_chunk(left_coordinate).checksum, original_checksum, "evicted region regenerates identically on return")
+
+
+func _test_background_generation() -> void:
+	var job := ChunkGenerationJob.new(WorldSeed.from_text("线程边境"), Vector2i(-9, 11))
+	var task_id := WorkerThreadPool.add_task(job.execute, false, "test_chunk_generation")
+	var error := WorkerThreadPool.wait_for_task_completion(task_id)
+	_assert_equal(error, OK, "background chunk task completes successfully")
+	_assert_equal(job.worker_task_id, task_id, "chunk data was generated on the worker pool")
+	_assert_true(job.result is ChunkData and not job.result.has_method("add_child"), "background task returns pure ChunkData without scene-tree APIs")
+
+
+func _test_chunk_renderer() -> void:
+	var renderer := ChunkRenderer.new()
 	add_child(renderer)
 	await get_tree().process_frame
 	var chunk := TerrainGenerator.new(WorldSeed.from_text("无尽边境")).generate_chunk(Vector2i(-1, -4))
 	renderer.apply_chunk(chunk)
 	_assert_equal(renderer.get_used_cells().size(), 1024, "TileMapLayer renders every chunk tile")
-	renderer.toggle_noise_view()
+	_assert_equal(renderer.get_used_rect(), Rect2i(0, 0, 32, 32), "chunk renderer uses bounded local TileMap coordinates")
+	_assert_equal(renderer.position, WorldCoordinates.tile_to_world_pixel(Vector2i(-32, -128)), "chunk renderer node carries the world offset")
+	renderer.set_debug_options(true, true)
 	_assert_equal(renderer.get_used_cells().size(), 1024, "noise debug view preserves cell coverage")
-	_assert_equal(renderer.view_mode_name(), "噪声", "noise debug view toggles explicitly")
 	renderer.queue_free()
 
 

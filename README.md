@@ -2,7 +2,7 @@
 
 一款完全本地运行的 2D 俯视角程序化无限世界生存探索 RPG。项目按照可回退、可测试、可独立运行的版本路线，从 V0.1.0 连续迭代至最终 V5.0.0。
 
-> 当前稳定版本：**V0.3.0 - 确定性单区块生成**
+> 当前稳定版本：**V0.4.0 - 无限区块流送**
 
 ## 核心原则
 
@@ -16,10 +16,10 @@
 
 Stable tags are created by the repository release gate only when the matching test report is marked `PASS`; existing tags are never moved.
 
-## V0.3.0 已包含
+## V0.4.0 已包含
 
 - Godot 4.7.1 工程与标准目录结构
-- 中文像素风主菜单与可操作的程序化海岸区块
+- 中文像素风主菜单与可向任意方向探索的程序化世界
 - 场景生命周期管理器与全局事件总线
 - 可持久化设置、日志轮换和运行时调试面板
 - 八方向行走、奔跑、翻滚、耐力消耗与生命接口
@@ -28,8 +28,11 @@ Stable tags are created by the repository release gate only when the matching te
 - 稳定的 64 位文字/数字世界种子和系统派生种子
 - 32×32 区块坐标、负坐标、区块内坐标和稳定区块键
 - FastNoiseLite 多尺度海拔场与深水、浅水、沙滩、陆地四级地形
-- 数据生成与 `TileMapLayer` 显示分离、确定性重新生成和噪声调试视图
-- 自动化结构检查、帧率无关性、生成顺序独立性及双场景冒烟测试
+- 活动半径 2、预载半径 3、缓存半径 4 的有界区块生命周期
+- 距离/移动方向优先队列和最多 4 个并发 WorkerThreadPool 纯数据任务
+- 主线程 `TileMapLayer` 激活/卸载、共享像素图集、内存峰值和流送 HUD
+- 地形/噪声调试视图与可切换区块边界
+- 自动化结构检查、生成顺序/接缝、后台线程及 30 分钟缓存策略模拟
 - Windows/Linux 导出预设、架构文档和完整迭代路线
 
 ## 运行
@@ -56,7 +59,7 @@ GODOT_BIN=/path/to/godot tools/run_tests.sh
 GODOT_BIN=/path/to/godot tools/build_release.sh
 ```
 
-游戏中按 `R` 可对当前区块进行确定性重新生成，按 `N` 切换地形/海拔噪声视图。
+游戏中按 `N` 切换地形/海拔噪声视图，按 `B` 切换区块边界。
 
 ## 项目结构
 

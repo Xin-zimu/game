@@ -2,6 +2,25 @@
 
 All notable changes are recorded here. Version numbers follow the staged project plan.
 
+## [0.4.0] - 2026-07-31
+
+### Added
+
+- Dynamic chunk activation, preloading, sleeping, cache retention and unloading.
+- Distance-prioritized queue biased toward the player's movement direction.
+- Up to four concurrent WorkerThreadPool jobs that return pure `ChunkData`.
+- Main-thread-only creation and removal of per-chunk `TileMapLayer` renderers.
+- Shared runtime pixel atlas and local 0–31 TileMap coordinates per renderer.
+- Active/preload/cache/queue/worker/peak-memory streaming metrics.
+- Toggleable chunk-boundary overlay and unbounded follow camera.
+- Seam, return consistency, worker execution and 1,800-step bounded-cache tests.
+
+### Fixed
+
+- Added explicit `Vector2i` typing for queue values returned as Variant.
+- Reimported the expanded CJK font subset before visual capture.
+- Moved boundary lines above TileMap batches and prevented camera-ready zoom from overriding the streaming view.
+
 ## [0.3.0] - 2026-07-31
 
 ### Added

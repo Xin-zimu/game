@@ -42,4 +42,14 @@ Normalized elevation is classified as deep water below `0.28`, shallow water bel
 
 ## Data/render boundary
 
-`TerrainGenerator.generate_chunk` returns `ChunkData` containing exactly 1024 terrain bytes, 1024 quantized elevation bytes and a SHA-256 checksum. `SingleChunkRenderer` consumes that data on the main thread and writes 1024 cells to a `TileMapLayer`. Generation code never accesses the player, UI or scene tree.
+`TerrainGenerator.generate_chunk` returns `ChunkData` containing exactly 1024 terrain bytes, 1024 quantized elevation bytes and a SHA-256 checksum. `ChunkRenderer` consumes that data on the main thread and writes 1024 cells to a `TileMapLayer`. Generation code never accesses the player, UI or scene tree.
+
+## V0.4 streaming contract
+
+| State/range | Radius | Maximum square |
+|---|---:|---:|
+| Active renderers | 2 | 25 chunks |
+| Preload targets | 3 | 49 chunks |
+| Retained data cache | 4 | 81 chunks |
+
+The manager prioritizes shorter Euclidean distance and applies a small bias in the player's movement direction. At most four jobs run concurrently. Workers build private generators and return `ChunkData`; only the main thread creates `ChunkRenderer` nodes. Each renderer stores 32×32 local cells and uses its node transform for world placement.

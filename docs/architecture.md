@@ -1,15 +1,15 @@
 # Architecture
 
-Infinite Frontier uses a layered, data-oriented Godot architecture. This document records the foundation through V0.3.0 and will evolve with every version.
+Infinite Frontier uses a layered, data-oriented Godot architecture. This document records the foundation through V0.4.0 and will evolve with every version.
 
 ## Runtime layers
 
-| Layer | Responsibility | Components through V0.3.0 |
+| Layer | Responsibility | Components through V0.4.0 |
 |---|---|---|
 | Core | Application lifecycle, settings, logging, events | `GameManager`, `SettingsManager`, `LogManager`, `EventBus` |
 | Presentation | Scenes, menus and debug UI | `main_menu.gd`, `world_sandbox.gd`, `GameplayHud`, `GenerationHud`, `DebugPanel` |
 | Gameplay | Player, interaction, combat and progression | `PlayerCharacter`, `PlayerMotor`, `PlayerVisual`, `PixelCamera` |
-| World | Coordinates, chunk data, persistence and streaming | `WorldCoordinates`, `ChunkData`, `SingleChunkRenderer`; streaming begins in V0.4.0 |
+| World | Coordinates, chunk data, persistence and streaming | `WorldCoordinates`, `ChunkData`, `ChunkStreamPlanner`, `ChunkGenerationJob`, `ChunkStreamManager`, `ChunkRenderer` |
 | Generation | Pure deterministic world data | `WorldSeed`, `TerrainGenerator` |
 | Data | Stable IDs and data-driven content | Introduced as systems require it |
 
@@ -37,4 +37,8 @@ The V0.2 sandbox is intentionally finite. `SandboxTerrain` and static obstacle b
 
 `WorldSeed` converts text with a documented SHA-256 fixture and derives independent system seeds. `WorldCoordinates` converts signed world tiles to chunk/local coordinates with floor division, including negative boundaries. `TerrainGenerator` reads only seeds and integer world coordinates and returns `ChunkData`; it never reads the player or scene tree. `SingleChunkRenderer` is the only component that translates those bytes into `TileMapLayer` cells.
 
-The same generator can be called for arbitrary coordinates, but V0.3 intentionally instantiates only one fixed chunk. Loading, prioritizing, caching and unloading multiple chunks remain V0.4 responsibilities.
+## Streaming ownership
+
+`ChunkStreamPlanner` is a pure policy module for radii, retention and priority. `ChunkStreamManager` owns the queue, job lifecycle, bounded cache and renderer lifecycle. A `ChunkGenerationJob` constructs a private generator on a worker and returns only `ChunkData`; every task is joined before its result is read or the manager exits. `ChunkRenderer` creation, TileMap updates, HUD signals and node removal happen only on the main thread.
+
+The active radius is 2 (at most 25 renderer nodes), the preload radius is 3 (at most 49 nearby data targets), and the retention radius is 4 (at most 81 cached coordinates under sustained travel). Each renderer stores local cells `0..31` and applies its signed chunk position as a node transform, avoiding large serialized TileMap coordinates.
