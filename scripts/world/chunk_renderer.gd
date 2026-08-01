@@ -1,7 +1,5 @@
-class_name SingleChunkRenderer
+class_name ChunkRenderer
 extends TileMapLayer
-
-signal view_mode_changed(mode_name: String)
 
 const TERRAIN_COLORS := [
 	Color("183f5a"),
@@ -11,50 +9,59 @@ const TERRAIN_COLORS := [
 ]
 const NOISE_STEPS := 16
 
+static var _shared_tile_set: TileSet
+static var _shared_source_id := -1
+
 var _chunk: ChunkData
-var _source_id := -1
 var _show_noise := false
+var _show_boundary := true
+var _boundary_overlay: ChunkBoundaryOverlay
 
 
 func _ready() -> void:
 	z_index = -20
-	tile_set = _build_tile_set()
+	_ensure_shared_tile_set()
+	tile_set = _shared_tile_set
+	_boundary_overlay = ChunkBoundaryOverlay.new()
+	add_child(_boundary_overlay)
 
 
 func apply_chunk(chunk: ChunkData) -> void:
 	_chunk = chunk
+	position = WorldCoordinates.tile_to_world_pixel(chunk.chunk_position * WorldCoordinates.CHUNK_SIZE)
 	_render()
 
 
-func toggle_noise_view() -> void:
-	_show_noise = not _show_noise
-	_render()
-	view_mode_changed.emit(view_mode_name())
-
-
-func view_mode_name() -> String:
-	return "噪声" if _show_noise else "地形"
+func set_debug_options(show_noise: bool, show_boundary: bool) -> void:
+	var noise_changed := _show_noise != show_noise
+	_show_noise = show_noise
+	_show_boundary = show_boundary
+	if _boundary_overlay != null:
+		_boundary_overlay.visible = _show_boundary
+	if noise_changed:
+		_render()
 
 
 func _render() -> void:
 	clear()
-	if _chunk == null or _source_id < 0:
+	if _chunk == null or _shared_source_id < 0:
 		return
 	for local_y in WorldCoordinates.CHUNK_SIZE:
 		for local_x in WorldCoordinates.CHUNK_SIZE:
 			var local := Vector2i(local_x, local_y)
-			var world_tile := WorldCoordinates.chunk_local_to_tile(_chunk.chunk_position, local)
 			var atlas_index: int
 			if _show_noise:
 				atlas_index = TERRAIN_COLORS.size() + mini(int(_chunk.elevation_at(local) * NOISE_STEPS), NOISE_STEPS - 1)
 			else:
 				atlas_index = int(_chunk.tile_at(local))
-			set_cell(world_tile, _source_id, Vector2i(atlas_index, 0), 0)
+			set_cell(local, _shared_source_id, Vector2i(atlas_index, 0), 0)
 
 
-func _build_tile_set() -> TileSet:
-	var result := TileSet.new()
-	result.tile_size = Vector2i.ONE * WorldCoordinates.TILE_SIZE
+static func _ensure_shared_tile_set() -> void:
+	if _shared_tile_set != null:
+		return
+	_shared_tile_set = TileSet.new()
+	_shared_tile_set.tile_size = Vector2i.ONE * WorldCoordinates.TILE_SIZE
 	var tile_count := TERRAIN_COLORS.size() + NOISE_STEPS
 	var image := Image.create(WorldCoordinates.TILE_SIZE * tile_count, WorldCoordinates.TILE_SIZE, false, Image.FORMAT_RGBA8)
 	for tile_index in tile_count:
@@ -70,11 +77,10 @@ func _build_tile_set() -> TileSet:
 	atlas.texture_region_size = Vector2i.ONE * WorldCoordinates.TILE_SIZE
 	for tile_index in tile_count:
 		atlas.create_tile(Vector2i(tile_index, 0))
-	_source_id = result.add_source(atlas)
-	return result
+	_shared_source_id = _shared_tile_set.add_source(atlas)
 
 
-func _paint_tile(image: Image, tile_index: int, base_color: Color) -> void:
+static func _paint_tile(image: Image, tile_index: int, base_color: Color) -> void:
 	var origin_x := tile_index * WorldCoordinates.TILE_SIZE
 	for y in WorldCoordinates.TILE_SIZE:
 		for x in WorldCoordinates.TILE_SIZE:

@@ -68,13 +68,13 @@ pause={
 "deadzone": 0.25,
 "events": [Object(InputEventKey,"physical_keycode":4194305)]
 }
-regenerate_world={
-"deadzone": 0.25,
-"events": [Object(InputEventKey,"physical_keycode":82)]
-}
 toggle_noise_view={
 "deadzone": 0.25,
 "events": [Object(InputEventKey,"physical_keycode":78)]
+}
+toggle_chunk_borders={
+"deadzone": 0.25,
+"events": [Object(InputEventKey,"physical_keycode":66)]
 }
 
 [layer_names]

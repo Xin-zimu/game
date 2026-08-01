@@ -29,7 +29,11 @@ REQUIRED_PATHS = (
     "scripts/generation/terrain_generator.gd",
     "scripts/world/world_coordinates.gd",
     "scripts/world/chunk_data.gd",
-    "scripts/world/single_chunk_renderer.gd",
+    "scripts/world/chunk_renderer.gd",
+    "scripts/world/chunk_boundary_overlay.gd",
+    "scripts/world/chunk_stream_planner.gd",
+    "scripts/world/chunk_generation_job.gd",
+    "scripts/world/chunk_stream_manager.gd",
     "assets/fonts/NotoSansCJKsc-ProjectSubset.otf",
     "tests/run_all.gd",
     "tests/test_runner.tscn",
@@ -49,8 +53,8 @@ def main() -> int:
             failures.append(f"autoload not registered: {autoload}")
 
     version_text = (ROOT / "scripts/core/game_version.gd").read_text(encoding="utf-8")
-    if 'const VERSION := "0.3.0"' not in version_text:
-        failures.append("game version is not 0.3.0")
+    if 'const VERSION := "0.4.0"' not in version_text:
+        failures.append("game version is not 0.4.0")
 
     if "const GENERATION_VERSION := 2" not in version_text:
         failures.append("generation version is not 2")

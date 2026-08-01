@@ -61,7 +61,7 @@ func _build_hud() -> void:
 	hints.offset_right = -260
 	hints.offset_top = -52
 	hints.offset_bottom = -18
-	hints.text = "WASD 移动 · Shift 奔跑 · Space 翻滚 · R 重新生成 · N 噪声视图 · Esc 返回"
+	hints.text = "WASD 移动 · Shift 奔跑 · Space 翻滚 · N 噪声 · B 区块边界 · Esc 返回"
 	hints.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hints.add_theme_font_size_override("font_size", 15)
 	hints.add_theme_color_override("font_color", Color("dce9df"))

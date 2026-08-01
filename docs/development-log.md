@@ -1,5 +1,30 @@
 # Development Log
 
+## V0.4.0 - Infinite chunk streaming
+
+- Added active, preload and retention radii of 2, 3 and 4 chunks.
+- Added a distance-sorted queue biased toward the player's current movement direction.
+- Added four concurrent WorkerThreadPool jobs with mandatory completion joins.
+- Added main-thread renderer activation/removal, shared TileSet reuse and bounded local TileMap coordinates.
+- Added current/peak cache, queue, worker and memory metrics plus visible boundary debugging.
+- Added 1,800-step retention simulation, seam-coordinate/global-field checks, return consistency and worker-ID tests.
+- Captured an actual fully warmed 25-active/24-preloaded frame spanning chunk boundaries.
+
+### Iteration findings
+
+- A statically impossible `ChunkData is Node` test was rejected by the GDScript compiler; the test now checks absence of scene-tree APIs.
+- `Array.pop_front()` returns Variant, and warning-as-error required an explicit `Vector2i` annotation.
+- The expanded font had not been reimported before the first capture, producing missing-glyph boxes despite a correct cmap.
+- A TileMap batch covered the first custom boundary draw, so boundaries moved to an independent `Line2D` child layer.
+- `PixelCamera._ready()` overwrote pre-tree unbounded zoom configuration; removing that override exposed adjacent chunks correctly.
+
+### Decisions
+
+- Workers never receive players, renderers or scene-tree references.
+- Completed jobs outside the current retention radius are joined and discarded rather than inserted into cache.
+- The manager waits every outstanding task on shutdown, following WorkerThreadPool's resource contract.
+- V0.4 streams only base terrain; biome, decoration and resource activation begin in later versions.
+
 ## V0.3.0 - Deterministic single-chunk generation
 
 - Added stable SHA-256-derived 64-bit seeds and independent domain/chunk seed derivation.
