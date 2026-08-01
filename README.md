@@ -2,7 +2,7 @@
 
 一款完全本地运行的 2D 俯视角程序化无限世界生存探索 RPG。项目按照可回退、可测试、可独立运行的版本路线，从 V0.1.0 连续迭代至最终 V5.0.0。
 
-> 当前稳定版本：**V0.4.0 - 无限区块流送**
+> 当前稳定版本：**V0.5.0 - 多层地形与生态群系**
 
 ## 核心原则
 
@@ -16,7 +16,7 @@
 
 Stable tags are created by the repository release gate only when the matching test report is marked `PASS`; existing tags are never moved.
 
-## V0.4.0 已包含
+## V0.5.0 已包含
 
 - Godot 4.7.1 工程与标准目录结构
 - 中文像素风主菜单与可向任意方向探索的程序化世界
@@ -28,10 +28,15 @@ Stable tags are created by the repository release gate only when the matching te
 - 稳定的 64 位文字/数字世界种子和系统派生种子
 - 32×32 区块坐标、负坐标、区块内坐标和稳定区块键
 - FastNoiseLite 多尺度海拔场与深水、浅水、沙滩、陆地四级地形
+- 大陆、海拔、侵蚀、温度、湿度和细节六个独立噪声域
+- 平原、森林、沙漠、雪原、沼泽、山地、海岸和两级海洋共九类群系
+- 可直接编辑 `data/biomes.json` 的群系阈值、优先级、颜色和过渡带
+- 全局邻域群系清理与气候阈值过渡，避免大量单格碎片
 - 活动半径 2、预载半径 3、缓存半径 4 的有界区块生命周期
 - 距离/移动方向优先队列和最多 4 个并发 WorkerThreadPool 纯数据任务
 - 主线程 `TileMapLayer` 激活/卸载、共享像素图集、内存峰值和流送 HUD
-- 地形/噪声调试视图与可切换区块边界
+- 地形、群系、气候、海拔四种调试视图与可切换区块边界
+- 当前群系、温度、湿度、海拔和侵蚀实时 HUD
 - 自动化结构检查、生成顺序/接缝、后台线程及 30 分钟缓存策略模拟
 - Windows/Linux 导出预设、架构文档和完整迭代路线
 
@@ -59,7 +64,7 @@ GODOT_BIN=/path/to/godot tools/run_tests.sh
 GODOT_BIN=/path/to/godot tools/build_release.sh
 ```
 
-游戏中按 `N` 切换地形/海拔噪声视图，按 `B` 切换区块边界。
+游戏中按 `N` 循环切换地形/群系/气候/海拔视图，按 `B` 切换区块边界。
 
 ## 项目结构
 

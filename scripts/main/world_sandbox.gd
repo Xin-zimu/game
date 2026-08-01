@@ -14,7 +14,7 @@ func _ready() -> void:
 	GameManager.current_state = GameManager.State.PLAYING
 	GameManager.current_scene_path = GameManager.GAME_SCENE
 	_build_world()
-	LogManager.info("WorldSandbox", "V0.4.0 infinite chunk stream ready")
+	LogManager.info("WorldSandbox", "V0.5.0 layered terrain and biome stream ready")
 
 
 func _unhandled_input(event: InputEvent) -> void:

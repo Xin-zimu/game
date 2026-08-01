@@ -93,7 +93,7 @@ func _build_interface() -> void:
 
 	var subheading := Label.new()
 	subheading.name = "VersionLabel"
-	subheading.text = "工程基础版本"
+	subheading.text = "多层地形与生态群系"
 	subheading.add_theme_color_override("font_color", COLOR_MUTED)
 	menu.add_child(subheading)
 	menu.add_child(HSeparator.new())

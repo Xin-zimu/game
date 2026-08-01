@@ -13,7 +13,12 @@ var world_layer: StringName = &"surface"
 var generation_version := GameVersion.GENERATION_VERSION
 var world_seed := 0
 var base_tiles := PackedByteArray()
+var continental_map := PackedByteArray()
 var elevation_map := PackedByteArray()
+var erosion_map := PackedByteArray()
+var temperature_map := PackedByteArray()
+var moisture_map := PackedByteArray()
+var biome_map := PackedByteArray()
 var checksum := ""
 
 
@@ -31,10 +36,42 @@ func elevation_at(local: Vector2i) -> float:
 	return float(elevation_map[_index(local)]) / 255.0
 
 
+func continental_at(local: Vector2i) -> float:
+	return _sample_map(continental_map, local, "continental")
+
+
+func erosion_at(local: Vector2i) -> float:
+	return _sample_map(erosion_map, local, "erosion")
+
+
+func temperature_at(local: Vector2i) -> float:
+	return _sample_map(temperature_map, local, "temperature")
+
+
+func moisture_at(local: Vector2i) -> float:
+	return _sample_map(moisture_map, local, "moisture")
+
+
+func biome_at(local: Vector2i) -> int:
+	if not _is_local_valid(local):
+		push_error("Chunk local coordinate is outside 32×32 bounds: %s" % local)
+		return 0
+	return int(biome_map[_index(local)])
+
+
 func terrain_counts() -> PackedInt32Array:
 	var counts := PackedInt32Array([0, 0, 0, 0])
 	for terrain_value in base_tiles:
 		counts[terrain_value] += 1
+	return counts
+
+
+func biome_counts(biome_count: int) -> PackedInt32Array:
+	var counts := PackedInt32Array()
+	counts.resize(biome_count)
+	for biome_value in biome_map:
+		if biome_value < biome_count:
+			counts[biome_value] += 1
 	return counts
 
 
@@ -53,8 +90,20 @@ func finalize_checksum() -> void:
 		generation_version,
 	]).to_utf8_buffer())
 	context.update(base_tiles)
+	context.update(continental_map)
 	context.update(elevation_map)
+	context.update(erosion_map)
+	context.update(temperature_map)
+	context.update(moisture_map)
+	context.update(biome_map)
 	checksum = context.finish().hex_encode().substr(0, 16)
+
+
+func _sample_map(values: PackedByteArray, local: Vector2i, map_name: String) -> float:
+	if not _is_local_valid(local):
+		push_error("Chunk local coordinate is outside 32×32 bounds for %s map: %s" % [map_name, local])
+		return 0.0
+	return float(values[_index(local)]) / 255.0
 
 
 func _index(local: Vector2i) -> int:

@@ -2,6 +2,29 @@
 
 All notable changes are recorded here. Version numbers follow the staged project plan.
 
+## [0.5.0] - 2026-08-01
+
+### Added
+
+- Independently seeded continentalness, elevation, erosion, temperature, moisture and detail fields.
+- Data-driven biome catalog loaded from `data/biomes.json` with schema and ID validation.
+- Plains, forest, desert, snowfield, swamp, mountain, coast, ocean and deep-ocean biomes.
+- Configurable transition bands and global-neighbour majority cleanup for coherent biome borders.
+- Per-chunk continental, erosion, temperature, moisture and biome byte maps included in checksums.
+- Terrain, biome, climate and elevation debug views plus live climate HUD values.
+- Headless deterministic biome-map renderer and continuity/coverage regression tests.
+
+### Changed
+
+- Generation format advanced from 2 to 3 because chunk bytes and terrain fields changed.
+- Project font subset expanded for all V0.5 Chinese biome and climate labels.
+- Export presets explicitly include the external biome JSON configuration.
+
+### Fixed
+
+- Replaced a non-constant `PackedStringArray` class constant with a valid constant array.
+- Added generation-HUD containment tests after expanding diagnostics to two lines.
+
 ## [0.4.0] - 2026-07-31
 
 ### Added
