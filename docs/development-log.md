@@ -1,5 +1,30 @@
 # Development Log
 
+## V0.6.0 - Resources and interaction
+
+- Added a validated JSON catalog for five resource nodes, three tools and five item drops.
+- Added deterministic global candidate cells with biome weights and pairwise minimum spacing across chunk borders.
+- Packed resource codes, local coordinates and variants into worker-safe `ChunkData`; advanced generation format to 4.
+- Added a shared resource atlas, physical collision for solid nodes and a temporary hit-highlight row.
+- Added nearest-resource prompts, strict tool checks, durability, correct deterministic drops and automatic pickup.
+- Added a fixed 32-object drop pool and shared harvest-difference state that prevents duplicate drops after chunk reload.
+- Added a dedicated resource/tool/inventory HUD and exact-data resource distribution map.
+- Expanded the suite from 99 to 148 passing tests, including water exclusion, five-type coverage, cross-chunk spacing, collision, durability, duplicate-drop and pool-capacity gates.
+
+### Iteration findings
+
+- `TileData` does not expose physics layers until its atlas source has been registered with the owning `TileSet`; source registration now precedes collision polygon creation.
+- Godot can exit zero after a failed custom assertion summary. The shell gate now also parses the final `passed/failed` line and rejects any non-zero failure count.
+- Advancing the generation format changes domain-derived terrain fields as well as resource bytes, so the V0.6 exact checksum fixture and nearby start-region coverage gate were refreshed together.
+- A real X11 gameplay frame remains unavailable in this sandbox. Visual QA uses the same generated `ChunkData` rendered into a 6×6-chunk resource map, plus scene smoke, collision and UI containment tests.
+
+### Decisions
+
+- Resource candidate selection compares stable global ranks, never a shared random sequence or generation order.
+- Solid resource collision is batched in one `TileMapLayer` per chunk; drop objects are the only pooled per-object visuals.
+- The harvest state stores differences rather than rewriting generated chunks. V0.7 will serialize this state without changing V0.6 generation ownership.
+- Building entrances do not exist yet, so the applicable exclusion gate is all deep and shallow water; later structure versions add entrance exclusion zones.
+
 ## V0.5.0 - Layered terrain and ecological biomes
 
 - Added independent continentalness, elevation, erosion, temperature, moisture and detail fields.

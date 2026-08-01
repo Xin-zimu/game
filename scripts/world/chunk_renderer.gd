@@ -22,6 +22,8 @@ var _chunk: ChunkData
 var _view_mode := ViewMode.TERRAIN
 var _show_boundary := true
 var _boundary_overlay: ChunkBoundaryOverlay
+var _resource_layer: ResourceChunkLayer
+var _collected_resources: Dictionary = {}
 
 
 func _ready() -> void:
@@ -30,12 +32,31 @@ func _ready() -> void:
 	tile_set = _shared_tile_set
 	_boundary_overlay = ChunkBoundaryOverlay.new()
 	add_child(_boundary_overlay)
+	_resource_layer = ResourceChunkLayer.new()
+	add_child(_resource_layer)
 
 
 func apply_chunk(chunk: ChunkData) -> void:
 	_chunk = chunk
 	position = WorldCoordinates.tile_to_world_pixel(chunk.chunk_position * WorldCoordinates.CHUNK_SIZE)
 	_render()
+	if _resource_layer != null:
+		_resource_layer.apply_chunk(chunk, _collected_resources)
+
+
+func set_collected_resources(collected_resources: Dictionary) -> void:
+	_collected_resources = collected_resources
+	if _resource_layer != null and _chunk != null:
+		_resource_layer.apply_chunk(_chunk, _collected_resources)
+
+
+func play_resource_hit(resource_key: String, destroyed: bool) -> void:
+	if _resource_layer != null:
+		_resource_layer.play_hit(resource_key, destroyed)
+
+
+func visible_resource_count() -> int:
+	return _resource_layer.visible_resource_count() if _resource_layer != null else 0
 
 
 func set_debug_options(view_mode: ViewMode, show_boundary: bool) -> void:

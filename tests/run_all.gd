@@ -15,14 +15,19 @@ func _ready() -> void:
 	_test_world_seed_contract()
 	_test_world_coordinate_contract()
 	_test_biome_catalog_contract()
+	_test_resource_catalog_contract()
 	_test_deterministic_generation()
 	_test_biome_regions()
+	_test_resource_generation()
+	_test_resource_harvest_state()
 	_test_stream_planner()
 	_test_chunk_seams()
 	_test_background_generation()
 	await _test_player_scene_contract()
 	await _test_chunk_renderer()
+	await _test_drop_pool()
 	await _test_generation_hud_layout()
+	await _test_resource_hud_layout()
 	await _test_main_menu_layout()
 	_finish()
 
@@ -35,15 +40,17 @@ func _test_project_resources() -> void:
 
 
 func _test_version_contract() -> void:
-	_assert_equal(GameVersion.VERSION, "0.5.0", "version constant")
+	_assert_equal(GameVersion.VERSION, "0.6.0", "version constant")
 	_assert_true(GameVersion.SAVE_VERSION >= 1, "save version initialized")
-	_assert_equal(GameVersion.GENERATION_VERSION, 3, "generation version incremented")
+	_assert_equal(GameVersion.GENERATION_VERSION, 4, "generation version incremented")
 
 
 func _test_event_bus_contract() -> void:
 	_assert_true(EventBus.has_signal("scene_change_requested"), "scene signal exists")
 	_assert_true(EventBus.has_signal("settings_changed"), "settings signal exists")
 	_assert_true(EventBus.has_signal("notification_requested"), "notification signal exists")
+	_assert_true(EventBus.has_signal("resource_prompt_changed"), "resource prompt signal exists")
+	_assert_true(EventBus.has_signal("inventory_changed"), "inventory signal exists")
 
 
 func _test_settings_round_trip() -> void:
@@ -103,6 +110,19 @@ func _test_biome_catalog_contract() -> void:
 	_assert_equal(catalog.classify_land(0.70, 0.30, 0.52, 0.50), catalog.code_for_id(&"plains"), "transition band routes a biome edge through plains")
 
 
+func _test_resource_catalog_contract() -> void:
+	var catalog := ResourceCatalog.new()
+	_assert_true(catalog.is_valid(), "external resource configuration loads and validates")
+	_assert_equal(catalog.resource_count(), 5, "resource catalog contains tree, rock, grass, flower and berry bush")
+	for resource_id in ResourceCatalog.REQUIRED_RESOURCE_IDS:
+		_assert_true(catalog.has_resource(resource_id), "catalog contains stable resource ID %s" % resource_id)
+	_assert_equal(catalog.tool_ids(), [&"hands", &"axe", &"pickaxe"], "tool order is data-driven and stable")
+	_assert_equal(catalog.required_tool_for_code(catalog.code_for_id(&"tree")), &"axe", "trees require an axe")
+	_assert_equal(catalog.required_tool_for_code(catalog.code_for_id(&"rock")), &"pickaxe", "rocks require a pickaxe")
+	_assert_true(catalog.candidate_code_for_biome(&"deep_ocean", 0.0) < 0, "deep ocean has no resource rule")
+	_assert_true(catalog.drop_pool_capacity() == 32 and catalog.max_resources_per_chunk() == 128, "resource and drop limits come from configuration")
+
+
 func _test_deterministic_generation() -> void:
 	var seed := WorldSeed.from_text("无尽边境")
 	var first_generator := TerrainGenerator.new(seed)
@@ -118,7 +138,7 @@ func _test_deterministic_generation() -> void:
 	_assert_equal(first.temperature_map.size(), 1024, "chunk contains 32×32 temperature samples")
 	_assert_equal(first.moisture_map.size(), 1024, "chunk contains 32×32 moisture samples")
 	_assert_equal(first.biome_map.size(), 1024, "chunk contains 32×32 biome samples")
-	_assert_equal(first.checksum, "47c1e52c4fe80f9c", "generation v3 checksum fixture remains stable")
+	_assert_equal(first.checksum, "25b17b18822faa6c", "generation v4 checksum fixture remains stable")
 	var other_seed := TerrainGenerator.new(WorldSeed.from_text("另一片边境")).generate_chunk(showcase_chunk)
 	_assert_true(first.checksum != other_seed.checksum, "different seeds produce different chunks")
 	var chunk_a := Vector2i(-3, 2)
@@ -136,7 +156,17 @@ func _test_deterministic_generation() -> void:
 	for count in counts:
 		if count > 0:
 			represented_types += 1
-	_assert_true(represented_types >= 2, "showcase chunk contains a visible terrain transition")
+	if represented_types < 2:
+		var nearby_counts := PackedInt32Array([0, 0, 0, 0])
+		for offset_y in range(-1, 2):
+			for offset_x in range(-1, 2):
+				var nearby := first_generator.generate_chunk(showcase_chunk + Vector2i(offset_x, offset_y)).terrain_counts()
+				for terrain_index in nearby_counts.size():
+					nearby_counts[terrain_index] += nearby[terrain_index]
+		represented_types = 0
+		for count in nearby_counts:
+			represented_types += 1 if count > 0 else 0
+	_assert_true(represented_types >= 2, "start region contains a visible terrain transition")
 	var isolated_tiles := 0
 	for y in range(1, WorldCoordinates.CHUNK_SIZE - 1):
 		for x in range(1, WorldCoordinates.CHUNK_SIZE - 1):
@@ -190,6 +220,76 @@ func _test_biome_regions() -> void:
 				isolated_cells += 1 if matching_neighbors == 0 else 0
 	_assert_true(float(matching_edges) / float(total_edges) > 0.90, "biomes form large continuous regions instead of random fragments")
 	_assert_true(isolated_cells <= 4, "biome transition cleanup limits isolated single cells")
+
+
+func _test_resource_generation() -> void:
+	var seed := WorldSeed.from_text("无尽边境")
+	var generator := TerrainGenerator.new(seed)
+	var catalog := ResourceCatalog.new()
+	var chunks: Array[ChunkData] = []
+	var represented := PackedInt32Array()
+	represented.resize(catalog.resource_count())
+	var keys := {}
+	var water_safe := true
+	var capped := true
+	for chunk_y in range(-5, 0):
+		for chunk_x in range(-3, 2):
+			var chunk := generator.generate_chunk(Vector2i(chunk_x, chunk_y))
+			chunks.append(chunk)
+			capped = capped and chunk.resource_count() <= catalog.max_resources_per_chunk()
+			for index in chunk.resource_count():
+				var local := chunk.resource_local_at(index)
+				var terrain := chunk.tile_at(local)
+				water_safe = water_safe and terrain != ChunkData.Terrain.DEEP_WATER and terrain != ChunkData.Terrain.SHALLOW_WATER
+				represented[chunk.resource_code_at(index)] += 1
+				keys[chunk.resource_key_at(index)] = true
+	_assert_true(water_safe, "resources never spawn in deep or shallow water")
+	_assert_true(capped, "resource counts remain under the configured per-chunk limit")
+	for resource_code in catalog.resource_count():
+		_assert_true(represented[resource_code] > 0, "deterministic region contains %s" % catalog.display_name_for_code(resource_code))
+	var all_spawns: Array[Dictionary] = []
+	for chunk in chunks:
+		for index in chunk.resource_count():
+			all_spawns.append({"tile": chunk.resource_world_tile_at(index), "code": chunk.resource_code_at(index)})
+	var spacing_valid := true
+	for first_index in all_spawns.size():
+		for second_index in range(first_index + 1, all_spawns.size()):
+			var first := all_spawns[first_index]
+			var second := all_spawns[second_index]
+			var required := maxi(catalog.minimum_distance_for_code(int(first["code"])), catalog.minimum_distance_for_code(int(second["code"])))
+			if (first["tile"] as Vector2i).distance_squared_to(second["tile"] as Vector2i) < required * required:
+				spacing_valid = false
+	_assert_true(spacing_valid, "minimum spacing holds within and across chunk borders")
+	_assert_equal(keys.size(), all_spawns.size(), "resource world keys are unique across chunks")
+	var showcase := generator.generate_chunk(Vector2i(-1, -4))
+	var repeated := TerrainGenerator.new(seed).generate_chunk(Vector2i(-1, -4))
+	_assert_true(showcase.resource_codes == repeated.resource_codes and showcase.resource_local_x == repeated.resource_local_x and showcase.resource_local_y == repeated.resource_local_y, "resource bytes are deterministic across generator restarts")
+	var spawn := generator.find_land_near(showcase)
+	_assert_true(not showcase.has_resource_at(WorldCoordinates.tile_to_local(spawn)), "initial player spawn avoids resource collision")
+
+
+func _test_resource_harvest_state() -> void:
+	var catalog := ResourceCatalog.new()
+	var state := ResourceHarvestState.new()
+	var tree_code := catalog.code_for_id(&"tree")
+	var key := "-7:12:%d" % tree_code
+	var wrong_tool := state.hit(key, tree_code, &"hands", catalog)
+	_assert_true(not bool(wrong_tool["accepted"]) and String(wrong_tool["reason"]) == "wrong_tool", "wrong tool cannot damage a resource")
+	var first_hit := state.hit(key, tree_code, &"axe", catalog)
+	var second_hit := state.hit(key, tree_code, &"axe", catalog)
+	var final_hit := state.hit(key, tree_code, &"axe", catalog)
+	_assert_true(bool(first_hit["accepted"]) and not bool(first_hit["destroyed"]) and int(first_hit["remaining"]) == 2, "resource durability decreases by tool power")
+	_assert_true((first_hit["drops"] as Array).is_empty() and (second_hit["drops"] as Array).is_empty(), "resource does not drop items before destruction")
+	_assert_true(bool(final_hit["destroyed"]) and state.collected_resources.has(key), "final valid hit records the resource difference")
+	var drops := final_hit["drops"] as Array
+	_assert_equal(drops.size(), 1, "destroyed tree resolves one controlled drop stack")
+	var tree_drop := drops[0] as Dictionary
+	_assert_equal(tree_drop["item_id"], &"wood", "tree produces the correct item")
+	_assert_true(int(tree_drop["quantity"]) >= 2 and int(tree_drop["quantity"]) <= 4, "tree drop quantity stays inside configured bounds")
+	var duplicate := state.hit(key, tree_code, &"axe", catalog)
+	_assert_true(not bool(duplicate["accepted"]) and (duplicate["drops"] as Array).is_empty(), "same resource cannot drop twice")
+	state.collect_item(tree_drop["item_id"] as StringName, int(tree_drop["quantity"]))
+	_assert_equal(state.quantity(&"wood"), int(tree_drop["quantity"]), "automatic pickup target inventory accepts resolved quantity")
 
 
 func _test_stream_planner() -> void:
@@ -254,6 +354,29 @@ func _test_chunk_renderer() -> void:
 	_assert_equal(renderer.get_used_cells().size(), 1024, "TileMapLayer renders every chunk tile")
 	_assert_equal(renderer.get_used_rect(), Rect2i(0, 0, 32, 32), "chunk renderer uses bounded local TileMap coordinates")
 	_assert_equal(renderer.position, WorldCoordinates.tile_to_world_pixel(Vector2i(-32, -128)), "chunk renderer node carries the world offset")
+	_assert_equal(renderer.visible_resource_count(), chunk.resource_count(), "resource TileMapLayer renders every generated resource without per-tile nodes")
+	var resource_layer: ResourceChunkLayer
+	for child in renderer.get_children():
+		if child is ResourceChunkLayer:
+			resource_layer = child as ResourceChunkLayer
+			break
+	_assert_true(resource_layer != null and resource_layer.tile_set.get_physics_layers_count() == 1, "resource TileMapLayer owns a shared collision layer")
+	var solid_collision_found := false
+	if resource_layer != null:
+		var catalog := ResourceCatalog.new()
+		for index in chunk.resource_count():
+			if not catalog.is_solid(chunk.resource_code_at(index)):
+				continue
+			var local := chunk.resource_local_at(index)
+			var source := resource_layer.tile_set.get_source(resource_layer.get_cell_source_id(local)) as TileSetAtlasSource
+			var tile_data := source.get_tile_data(resource_layer.get_cell_atlas_coords(local), 0)
+			solid_collision_found = tile_data.get_collision_polygons_count(0) > 0
+			break
+	_assert_true(solid_collision_found, "solid trees, rocks or berry bushes expose physical collision polygons")
+	if chunk.resource_count() > 0:
+		var collected := {chunk.resource_key_at(0): true}
+		renderer.set_collected_resources(collected)
+		_assert_equal(renderer.visible_resource_count(), chunk.resource_count() - 1, "collected resource remains hidden when a chunk renderer refreshes")
 	renderer.set_debug_options(ChunkRenderer.ViewMode.BIOME, true)
 	_assert_equal(renderer.get_used_cells().size(), 1024, "biome debug view preserves cell coverage")
 	renderer.set_debug_options(ChunkRenderer.ViewMode.CLIMATE, true)
@@ -261,6 +384,24 @@ func _test_chunk_renderer() -> void:
 	renderer.set_debug_options(ChunkRenderer.ViewMode.ELEVATION, true)
 	_assert_equal(renderer.get_used_cells().size(), 1024, "elevation debug view preserves cell coverage")
 	renderer.queue_free()
+
+
+func _test_drop_pool() -> void:
+	var pool := WorldDropPool.new()
+	pool.configure(2)
+	add_child(pool)
+	await get_tree().process_frame
+	_assert_true(pool.spawn_drop(&"wood", 2, Vector2(10, 10)), "drop pool activates a free object")
+	_assert_true(pool.spawn_drop(&"stone", 1, Vector2(80, 10)), "drop pool activates a second free object")
+	_assert_true(not pool.spawn_drop(&"berry", 1, Vector2(150, 10)), "drop pool refuses an unmergeable overflow")
+	_assert_true(pool.spawn_drop(&"wood", 3, Vector2(12, 10)), "full pool merges a matching item stack")
+	_assert_equal(pool.active_count(), 2, "drop object count remains capped at pool capacity")
+	pool._process(0.25)
+	var pickup := pool.collect_near(Vector2(10, 10), 24.0)
+	_assert_equal(pickup.size(), 1, "automatic pickup collects only nearby mature drops")
+	_assert_equal(int((pickup[0] as Dictionary)["quantity"]), 5, "merged drop stack preserves total quantity")
+	_assert_equal(pool.active_count(), 1, "picked-up object returns to the pool")
+	pool.queue_free()
 
 
 func _test_player_scene_contract() -> void:
@@ -305,6 +446,25 @@ func _test_generation_hud_layout() -> void:
 	if panel != null and world_label != null and stream_label != null:
 		_assert_true(panel.get_global_rect().encloses(world_label.get_global_rect()), "biome and climate diagnostics stay inside generation panel")
 		_assert_true(panel.get_global_rect().encloses(stream_label.get_global_rect()), "stream diagnostics stay inside generation panel")
+	hud.queue_free()
+
+
+func _test_resource_hud_layout() -> void:
+	var hud := ResourceHud.new()
+	add_child(hud)
+	await get_tree().process_frame
+	EventBus.active_tool_changed.emit(&"axe", "斧头")
+	EventBus.inventory_changed.emit({"wood": 4, "stone": 2, "fiber": 1})
+	EventBus.resource_prompt_changed.emit("[E] 采集树木 · 耐久 3")
+	await get_tree().process_frame
+	var panel := hud.find_child("ResourcePanel", true, false) as Control
+	var tool_label := hud.find_child("ToolLabel", true, false) as Label
+	var inventory_label := hud.find_child("InventoryLabel", true, false) as Label
+	var prompt_label := hud.find_child("ResourcePromptLabel", true, false) as Label
+	_assert_true(panel != null and tool_label != null and inventory_label != null and prompt_label != null, "resource HUD tool, inventory and prompt nodes exist")
+	if panel != null and tool_label != null and inventory_label != null:
+		_assert_true(panel.get_global_rect().encloses(tool_label.get_global_rect()), "active tool stays inside resource panel")
+		_assert_true(panel.get_global_rect().encloses(inventory_label.get_global_rect()), "inventory summary stays inside resource panel")
 	hud.queue_free()
 
 

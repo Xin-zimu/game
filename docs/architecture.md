@@ -1,17 +1,17 @@
 # Architecture
 
-Infinite Frontier uses a layered, data-oriented Godot architecture. This document records the foundation through V0.5.0 and will evolve with every version.
+Infinite Frontier uses a layered, data-oriented Godot architecture. This document records the foundation through V0.6.0 and will evolve with every version.
 
 ## Runtime layers
 
-| Layer | Responsibility | Components through V0.5.0 |
+| Layer | Responsibility | Components through V0.6.0 |
 |---|---|---|
 | Core | Application lifecycle, settings, logging, events | `GameManager`, `SettingsManager`, `LogManager`, `EventBus` |
-| Presentation | Scenes, menus and debug UI | `main_menu.gd`, `world_sandbox.gd`, `GameplayHud`, `GenerationHud`, `DebugPanel` |
-| Gameplay | Player, interaction, combat and progression | `PlayerCharacter`, `PlayerMotor`, `PlayerVisual`, `PixelCamera` |
-| World | Coordinates, chunk data, persistence and streaming | `WorldCoordinates`, `ChunkData`, `ChunkStreamPlanner`, `ChunkGenerationJob`, `ChunkStreamManager`, `ChunkRenderer` |
-| Generation | Pure deterministic world data | `WorldSeed`, `BiomeCatalog`, `TerrainGenerator` |
-| Data | Stable IDs and data-driven content | `data/biomes.json` |
+| Presentation | Scenes, menus and debug UI | `main_menu.gd`, `world_sandbox.gd`, `GameplayHud`, `GenerationHud`, `ResourceHud`, `DebugPanel` |
+| Gameplay | Player, interaction, combat and progression | `PlayerCharacter`, `PlayerMotor`, `PlayerVisual`, `PixelCamera`, `ResourceHarvestState` |
+| World | Coordinates, chunk data, persistence and streaming | `WorldCoordinates`, `ChunkData`, `ChunkStreamPlanner`, `ChunkGenerationJob`, `ChunkStreamManager`, `ChunkRenderer`, `ResourceChunkLayer`, `WorldDropPool` |
+| Generation | Pure deterministic world data | `WorldSeed`, `BiomeCatalog`, `ResourceCatalog`, `ResourceGenerator`, `TerrainGenerator` |
+| Data | Stable IDs and data-driven content | `data/biomes.json`, `data/resources.json` |
 
 ## Architectural rules
 
@@ -48,3 +48,15 @@ The generation pipeline uses independent seed domains for continentalness, eleva
 `ChunkStreamPlanner` is a pure policy module for radii, retention and priority. `ChunkStreamManager` owns the queue, job lifecycle, bounded cache and renderer lifecycle. A `ChunkGenerationJob` constructs a private generator on a worker and returns only `ChunkData`; every task is joined before its result is read or the manager exits. `ChunkRenderer` creation, TileMap updates, HUD signals and node removal happen only on the main thread.
 
 The active radius is 2 (at most 25 renderer nodes), the preload radius is 3 (at most 49 nearby data targets), and the retention radius is 4 (at most 81 cached coordinates under sustained travel). Each renderer stores local cells `0..31` and applies its signed chunk position as a node transform, avoiding large serialized TileMap coordinates.
+
+## Resource generation ownership
+
+`ResourceCatalog` validates stable resource, tool and item IDs plus biome weights, durability, spacing and drop bounds. `ResourceGenerator` evaluates one jittered candidate per global 2×2 tile cell. A candidate is accepted only when its stable rank wins every conflicting neighbor within the larger of their configured spacing radii. Because selection reads global cells rather than adjacent chunk objects, the result is independent of request order and remains valid across negative chunk borders.
+
+Accepted coordinates, resource codes and visual variants are packed into `ChunkData` and its checksum. Water rejection happens before selection. `ResourceChunkLayer` creates one shared-atlas `TileMapLayer` per active chunk; it does not create a `Node2D` for every resource. Solid atlas entries carry collision polygons, while hit feedback swaps only the affected cell to a temporary highlighted atlas row.
+
+## Resource interaction ownership
+
+`ChunkStreamManager` performs proximity queries against active chunk data and delegates hit rules to `ResourceHarvestState`. The state layer owns partial durability, collected keys and inventory counts. A collected key is never resolved twice and remains hidden when the chunk renderer is recreated. V0.6 keeps this difference state for the running session; V0.7 serializes the same model to disk.
+
+`WorldDropPool` preallocates 32 visual objects. Destroyed resources resolve bounded item stacks from the stable resource key, then activate or merge a pooled object. Nearby mature drops return to the pool after automatic pickup. `ResourceHud` receives prompt, tool, inventory and feedback events; it never calculates harvest rules.

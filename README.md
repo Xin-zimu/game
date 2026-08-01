@@ -2,7 +2,7 @@
 
 一款完全本地运行的 2D 俯视角程序化无限世界生存探索 RPG。项目按照可回退、可测试、可独立运行的版本路线，从 V0.1.0 连续迭代至最终 V5.0.0。
 
-> 当前稳定版本：**V0.5.0 - 多层地形与生态群系**
+> 当前稳定版本：**V0.6.0 - 资源和交互**
 
 ## 核心原则
 
@@ -16,7 +16,7 @@
 
 Stable tags are created by the repository release gate only when the matching test report is marked `PASS`; existing tags are never moved.
 
-## V0.5.0 已包含
+## V0.6.0 已包含
 
 - Godot 4.7.1 工程与标准目录结构
 - 中文像素风主菜单与可向任意方向探索的程序化世界
@@ -37,6 +37,13 @@ Stable tags are created by the repository release gate only when the matching te
 - 主线程 `TileMapLayer` 激活/卸载、共享像素图集、内存峰值和流送 HUD
 - 地形、群系、气候、海拔四种调试视图与可切换区块边界
 - 当前群系、温度、湿度、海拔和侵蚀实时 HUD
+- 树木、石头、草丛、花和浆果丛五类稳定资源 ID
+- 可直接编辑 `data/resources.json` 的群系密度、间距、耐久、工具和掉落规则
+- 按全局候选网格生成且跨区块成立的最小资源间距
+- 树木、石头和浆果丛的共享 `TileMapLayer` 物理碰撞
+- 徒手、斧头和镐子工具切换、交互提示、耐久命中与采集闪烁动画
+- 确定性物品掉落、32 槽对象池、同类溢出合并和近距离自动拾取
+- 会话内资源差异与背包计数；返回已探索区块时不会恢复已采集资源
 - 自动化结构检查、生成顺序/接缝、后台线程及 30 分钟缓存策略模拟
 - Windows/Linux 导出预设、架构文档和完整迭代路线
 
@@ -64,7 +71,7 @@ GODOT_BIN=/path/to/godot tools/run_tests.sh
 GODOT_BIN=/path/to/godot tools/build_release.sh
 ```
 
-游戏中按 `N` 循环切换地形/群系/气候/海拔视图，按 `B` 切换区块边界。
+游戏中按 `E` 采集，按 `Q` 在徒手/斧头/镐子之间切换；按 `N` 循环切换地形/群系/气候/海拔视图，按 `B` 切换区块边界。
 
 ## 项目结构
 
