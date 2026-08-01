@@ -2,6 +2,33 @@
 
 All notable changes are recorded here. Version numbers follow the staged project plan.
 
+## [0.7.0] - 2026-08-01
+
+### Added
+
+- World-creation overlay with validated name and original text/numeric seed.
+- Versioned world metadata and player documents under isolated local world directories.
+- Player position, health, stamina, active tool and V0.6 pickup-count restoration.
+- Sparse per-chunk surface differences containing only destroyed resource keys.
+- 30-second autosave, `Ctrl+S` manual save and return/close save triggers.
+- Worker-thread JSON writes with main-thread immutable snapshot dispatch and timing feedback.
+- Temporary/previous-file transaction, five retained timestamped backups and shutdown flush.
+- File/line-specific corruption and save/generation incompatibility messages.
+- Continue flow for the most recently played valid world and a complete save-format document.
+- Exact-data visual of 75 restored removals over 668 remaining resources.
+
+### Changed
+
+- Save format advanced from placeholder 1 to complete format 2; generation remains format 4.
+- The main menu now enables Continue when a local world document exists.
+- `ResourceHarvestState` and `PlayerCharacter` expose explicit persistence snapshots/restoration.
+- Project font subset expanded for all V0.7 world creation, save and error labels.
+
+### Fixed
+
+- Save validation no longer string-casts arbitrary dictionary Variants.
+- Outstanding old-world saves are flushed before creating or loading another world.
+
 ## [0.6.0] - 2026-08-01
 
 ### Added

@@ -2,7 +2,7 @@
 
 一款完全本地运行的 2D 俯视角程序化无限世界生存探索 RPG。项目按照可回退、可测试、可独立运行的版本路线，从 V0.1.0 连续迭代至最终 V5.0.0。
 
-> 当前稳定版本：**V0.6.0 - 资源和交互**
+> 当前稳定版本：**V0.7.0 - 基础存档**
 
 ## 核心原则
 
@@ -16,7 +16,7 @@
 
 Stable tags are created by the repository release gate only when the matching test report is marked `PASS`; existing tags are never moved.
 
-## V0.6.0 已包含
+## V0.7.0 已包含
 
 - Godot 4.7.1 工程与标准目录结构
 - 中文像素风主菜单与可向任意方向探索的程序化世界
@@ -44,6 +44,13 @@ Stable tags are created by the repository release gate only when the matching te
 - 徒手、斧头和镐子工具切换、交互提示、耐久命中与采集闪烁动画
 - 确定性物品掉落、32 槽对象池、同类溢出合并和近距离自动拾取
 - 会话内资源差异与背包计数；返回已探索区块时不会恢复已采集资源
+- 世界创建界面、1–32 字世界名称和文字/数字种子
+- `world.json` 世界元数据与 `player.json` 位置、生命、体力、工具和采集计数
+- 仅在永久变化后创建的 `chunks/surface/<x>_<y>.json` 区块差异
+- 30 秒后台自动保存、`Ctrl+S` 手动保存、返回菜单/正常退出保存
+- 临时文件事务提交、最多五份时间戳备份和退出前任务汇合
+- 文件、行号和原因明确的损坏/版本不兼容提示
+- “继续游戏”载入最近的有效世界，正确恢复玩家与被采集资源
 - 自动化结构检查、生成顺序/接缝、后台线程及 30 分钟缓存策略模拟
 - Windows/Linux 导出预设、架构文档和完整迭代路线
 
@@ -71,7 +78,7 @@ GODOT_BIN=/path/to/godot tools/run_tests.sh
 GODOT_BIN=/path/to/godot tools/build_release.sh
 ```
 
-游戏中按 `E` 采集，按 `Q` 在徒手/斧头/镐子之间切换；按 `N` 循环切换地形/群系/气候/海拔视图，按 `B` 切换区块边界。
+游戏中按 `E` 采集，按 `Q` 在徒手/斧头/镐子之间切换，按 `Ctrl+S` 手动保存；按 `N` 循环切换地形/群系/气候/海拔视图，按 `B` 切换区块边界。
 
 ## 项目结构
 
@@ -89,6 +96,8 @@ releases/     每版测试、审查和问题记录
 ## 路线
 
 V1.0.0 只是第一个完整可玩节点，项目不会在此停止。完整路线见 [`docs/release-roadmap.md`](docs/release-roadmap.md)，最终目标是包含完整世界、文明、生存、建造、海洋、季节、主线和终局的 V5.0.0。
+
+存档目录、JSON 字段、差异条件、事务和备份规则见 [`docs/save-format.md`](docs/save-format.md)。
 
 ## License
 

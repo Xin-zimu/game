@@ -21,6 +21,7 @@ var _harvest_state := ResourceHarvestState.new()
 var _tool_ids: Array[StringName] = []
 var _active_tool_index := 0
 var _drop_pool: WorldDropPool
+var _pending_persistence: Dictionary = {}
 var _view_mode := ChunkRenderer.ViewMode.TERRAIN
 var _show_boundaries := true
 var _completed_total := 0
@@ -45,6 +46,7 @@ func _ready() -> void:
 		set_process(false)
 		return
 	_tool_ids = _resource_catalog.tool_ids()
+	_restore_pending_persistence()
 	_drop_pool = WorldDropPool.new()
 	_drop_pool.configure(_resource_catalog.drop_pool_capacity(), _resource_catalog)
 	add_child(_drop_pool)
@@ -185,6 +187,18 @@ func nearest_resource(radius_pixels: float) -> Dictionary:
 
 func harvest_state() -> ResourceHarvestState:
 	return _harvest_state
+
+
+func restore_persistence(snapshot: Dictionary) -> void:
+	_pending_persistence = snapshot.duplicate(true)
+	if is_inside_tree() and not _tool_ids.is_empty():
+		_restore_pending_persistence()
+
+
+func persistence_snapshot() -> Dictionary:
+	var snapshot := _harvest_state.persistence_snapshot()
+	snapshot["active_tool"] = String(active_tool_id())
+	return snapshot
 
 
 func metrics_snapshot() -> Dictionary:
@@ -376,6 +390,19 @@ func _emit_tool_and_inventory() -> void:
 	var tool_id := active_tool_id()
 	EventBus.active_tool_changed.emit(tool_id, _resource_catalog.tool_display_name(tool_id))
 	EventBus.inventory_changed.emit(_harvest_state.inventory_snapshot())
+
+
+func _restore_pending_persistence() -> void:
+	if _pending_persistence.is_empty():
+		return
+	_harvest_state.restore_snapshot(
+		_pending_persistence.get("collected_resources", []) as Array,
+		_pending_persistence.get("inventory", {}) as Dictionary
+	)
+	var requested_tool := StringName(_pending_persistence.get("active_tool", "hands"))
+	var requested_index := _tool_ids.find(requested_tool)
+	_active_tool_index = requested_index if requested_index >= 0 else 0
+	_pending_persistence.clear()
 
 
 func _coordinate_set(coordinates: Array[Vector2i]) -> Dictionary:

@@ -1,5 +1,31 @@
 # Development Log
 
+## V0.7.0 - Basic saves and chunk differences
+
+- Added a world-creation overlay with world name and stable text/numeric seed input.
+- Added versioned world metadata, player state and sparse surface-chunk difference files.
+- Restored signed player position, health, stamina, selected tool, pickup counts and removed resource keys.
+- Added 30-second autosave, `Ctrl+S`, return-to-menu and window-close save triggers.
+- Added worker-thread writes, atomic temporary/previous transactions, five backups and shutdown task joins.
+- Added file/line-specific corruption errors and exact save/generation compatibility checks.
+- Added a normative save-format document and a headless difference-state visual.
+- Expanded the suite from 148 to 177 passing tests, including empty-world sparsity, exact restore, backup, corruption and dispatch-latency gates.
+
+### Iteration findings
+
+- Godot's warnings-as-errors rejects a local inferred from `Dictionary.get` as Variant; persistence restore values now use explicit `Variant` annotations before shape checks.
+- `PackedStringArray` has no `pop_front`; backup pruning copies directory names into a typed `Array[String]` before removing the oldest entry.
+- Arbitrary Variant values should not be passed through the `String` constructor during schema validation; `str()` is used only for required non-empty metadata checks.
+- A scene compilation failure can leave a prior cached script usable long enough for later assertions to run. The error-aware shell gate correctly rejected that run despite a zero-failure assertion summary.
+
+### Decisions
+
+- V0.7 uses readable JSON for small metadata/player/difference documents; the sparse data model matters more than premature database complexity.
+- Save version advances to 2 while generation remains 4 because persistence changed without changing base world bytes.
+- The main thread captures state and dispatches; file I/O, transaction replacement and backups run in a worker job.
+- Corrupt or incompatible worlds never fall back to a new world automatically.
+- The first project stage (V0.1–V0.7) now closes with engineering foundation, movement, deterministic infinite terrain, biomes, resources, interaction and persistence all independently releasable.
+
 ## V0.6.0 - Resources and interaction
 
 - Added a validated JSON catalog for five resource nodes, three tools and five item drops.

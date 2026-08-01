@@ -1,0 +1,2 @@
+9d4af6775e6784a8f2110ad2d4e72258f46ddd627c0a9dcd76523d7c91421a26  InfiniteFrontier-stage-1-v0.7.0-windows.zip
+991df9005fada140cb7fd43a67f59fa2e9ffc58be493b94652302e6784faaea9  InfiniteFrontier-stage-1-v0.7.0-source.zip

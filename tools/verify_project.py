@@ -14,6 +14,7 @@ REQUIRED_PATHS = (
     "README.md",
     "AGENTS.md",
     "CHANGELOG.md",
+    "docs/save-format.md",
     "scenes/main/main.tscn",
     "scenes/main/game.tscn",
     "scenes/player/player.tscn",
@@ -21,6 +22,8 @@ REQUIRED_PATHS = (
     "scripts/core/game_manager.gd",
     "scripts/core/settings_manager.gd",
     "scripts/core/log_manager.gd",
+    "scripts/save/save_manager.gd",
+    "scripts/save/save_write_job.gd",
     "scripts/ui/ui_theme_factory.gd",
     "scripts/main/world_sandbox.gd",
     "scripts/player/player_character.gd",
@@ -49,6 +52,7 @@ REQUIRED_PATHS = (
     "tools/build_release.sh",
     "tools/render_biome_map.gd",
     "tools/render_resource_map.gd",
+    "tools/render_save_diff_map.gd",
 )
 
 
@@ -59,13 +63,16 @@ def main() -> int:
             failures.append(f"missing required file: {relative}")
 
     project = (ROOT / "project.godot").read_text(encoding="utf-8")
-    for autoload in ("EventBus", "LogManager", "SettingsManager", "GameManager"):
+    for autoload in ("EventBus", "LogManager", "SettingsManager", "SaveManager", "GameManager"):
         if not re.search(rf"^{autoload}=", project, flags=re.MULTILINE):
             failures.append(f"autoload not registered: {autoload}")
 
     version_text = (ROOT / "scripts/core/game_version.gd").read_text(encoding="utf-8")
-    if 'const VERSION := "0.6.0"' not in version_text:
-        failures.append("game version is not 0.6.0")
+    if 'const VERSION := "0.7.0"' not in version_text:
+        failures.append("game version is not 0.7.0")
+
+    if "const SAVE_VERSION := 2" not in version_text:
+        failures.append("save version is not 2")
 
     if "const GENERATION_VERSION := 4" not in version_text:
         failures.append("generation version is not 4")

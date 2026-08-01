@@ -17,6 +17,7 @@ config/icon="res://assets/branding/icon.svg"
 EventBus="*res://scripts/core/event_bus.gd"
 LogManager="*res://scripts/core/log_manager.gd"
 SettingsManager="*res://scripts/core/settings_manager.gd"
+SaveManager="*res://scripts/save/save_manager.gd"
 GameManager="*res://scripts/core/game_manager.gd"
 
 [display]
@@ -83,6 +84,10 @@ interact={
 cycle_tool={
 "deadzone": 0.25,
 "events": [Object(InputEventKey,"physical_keycode":81)]
+}
+manual_save={
+"deadzone": 0.25,
+"events": [Object(InputEventKey,"ctrl_pressed":true,"physical_keycode":83)]
 }
 
 [layer_names]

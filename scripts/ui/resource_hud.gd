@@ -18,6 +18,7 @@ func _ready() -> void:
 	EventBus.active_tool_changed.connect(_on_active_tool_changed)
 	EventBus.inventory_changed.connect(_on_inventory_changed)
 	EventBus.interaction_feedback.connect(_on_interaction_feedback)
+	EventBus.save_status_changed.connect(_on_save_status_changed)
 	_on_active_tool_changed(&"hands", _catalog.tool_display_name(&"hands"))
 	_on_inventory_changed({})
 
@@ -96,3 +97,7 @@ func _on_interaction_feedback(message: String, successful: bool) -> void:
 	_feedback_label.text = message
 	_feedback_label.add_theme_color_override("font_color", Color("8fd0a6") if successful else Color("e9b86c"))
 	_feedback_remaining = 2.0
+
+
+func _on_save_status_changed(message: String, successful: bool) -> void:
+	_on_interaction_feedback(message, successful)

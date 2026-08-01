@@ -20,6 +20,7 @@ func _ready() -> void:
 	_test_biome_regions()
 	_test_resource_generation()
 	_test_resource_harvest_state()
+	await _test_save_system()
 	_test_stream_planner()
 	_test_chunk_seams()
 	_test_background_generation()
@@ -40,8 +41,8 @@ func _test_project_resources() -> void:
 
 
 func _test_version_contract() -> void:
-	_assert_equal(GameVersion.VERSION, "0.6.0", "version constant")
-	_assert_true(GameVersion.SAVE_VERSION >= 1, "save version initialized")
+	_assert_equal(GameVersion.VERSION, "0.7.0", "version constant")
+	_assert_equal(GameVersion.SAVE_VERSION, 2, "save version incremented for the V0.7 format")
 	_assert_equal(GameVersion.GENERATION_VERSION, 4, "generation version incremented")
 
 
@@ -51,6 +52,7 @@ func _test_event_bus_contract() -> void:
 	_assert_true(EventBus.has_signal("notification_requested"), "notification signal exists")
 	_assert_true(EventBus.has_signal("resource_prompt_changed"), "resource prompt signal exists")
 	_assert_true(EventBus.has_signal("inventory_changed"), "inventory signal exists")
+	_assert_true(EventBus.has_signal("save_status_changed"), "save status signal exists")
 
 
 func _test_settings_round_trip() -> void:
@@ -292,6 +294,69 @@ func _test_resource_harvest_state() -> void:
 	_assert_equal(state.quantity(&"wood"), int(tree_drop["quantity"]), "automatic pickup target inventory accepts resolved quantity")
 
 
+func _test_save_system() -> void:
+	SaveManager.clear_current_world()
+	_assert_true(SaveManager.create_world("自动测试边境", "存档种子-070"), "world creation writes initial metadata and player state")
+	var root := SaveManager.current_world_root_absolute()
+	_assert_true(FileAccess.file_exists(root.path_join("world.json")) and FileAccess.file_exists(root.path_join("player.json")), "new world contains metadata and player documents")
+	var metadata := _read_json_for_test(root.path_join("world.json"))
+	_assert_equal(int(metadata.get("save_version", 0)), 2, "world metadata records save format 2")
+	_assert_equal(int(metadata.get("generation_version", 0)), 4, "world metadata records generation format 4")
+	_assert_equal(String(metadata.get("world_name", "")), "自动测试边境", "world metadata preserves the world name")
+	_assert_equal(String(metadata.get("seed_text", "")), "存档种子-070", "world metadata preserves the text seed")
+	var chunks_path := root.path_join("chunks/surface")
+	_assert_equal(_json_file_count(chunks_path), 0, "new unmodified world creates no chunk difference file")
+	var initial_player := SaveManager.loaded_player_snapshot()
+	var empty_state := {"collected_resources": [], "inventory": {}, "active_tool": "hands"}
+	_assert_true(SaveManager.request_save(initial_player, empty_state, 1.25, false), "automatic save request accepts an immutable snapshot")
+	SaveManager.flush_pending_save()
+	_assert_equal(_json_file_count(chunks_path), 0, "saving an unmodified world still creates no chunk difference file")
+	var player := initial_player.duplicate(true)
+	player["position"] = [-2048.5, 1024.25]
+	player["health"] = 73.0
+	player["stamina"] = 41.0
+	var removed_keys := ["-1:-129:0", "33:65:1"]
+	var changed_state := {
+		"collected_resources": removed_keys,
+		"inventory": {"wood": 7, "stone": 3},
+		"active_tool": "axe",
+	}
+	var dispatch_started := Time.get_ticks_usec()
+	_assert_true(SaveManager.request_save(player, changed_state, 42.5, false), "changed world dispatches an autosave")
+	var dispatch_ms := float(Time.get_ticks_usec() - dispatch_started) / 1000.0
+	_assert_true(dispatch_ms < 50.0, "autosave snapshot dispatch does not block the main thread")
+	SaveManager.flush_pending_save()
+	_assert_true(SaveManager.last_save_duration_ms < 500.0, "background save completes without a visible-length stall")
+	_assert_equal(_json_file_count(chunks_path), 2, "only the two modified chunks create difference files")
+	var world_id := SaveManager.current_world_id()
+	SaveManager.clear_current_world()
+	_assert_true(SaveManager.load_world(world_id), "saved world reloads after manager state is cleared")
+	var restored_player := SaveManager.loaded_player_snapshot()
+	_assert_equal(restored_player["position"], [-2048.5, 1024.25], "player position restores exactly")
+	_assert_equal(float(restored_player["health"]), 73.0, "player health restores exactly")
+	_assert_equal(float(restored_player["stamina"]), 41.0, "player stamina restores exactly")
+	var restored_world_state := SaveManager.loaded_world_state_snapshot()
+	var restored_removed := restored_world_state["collected_resources"] as Array
+	_assert_true(restored_removed.has(removed_keys[0]) and restored_removed.has(removed_keys[1]), "destroyed resources restore from chunk differences")
+	_assert_equal(int((restored_world_state["inventory"] as Dictionary).get("wood", 0)), 7, "V0.6 pickup counts restore as player attributes")
+	_assert_equal(String(restored_world_state["active_tool"]), "axe", "active tool restores with player attributes")
+	var restored_harvest := ResourceHarvestState.new()
+	restored_harvest.restore_snapshot(restored_removed, restored_world_state["inventory"] as Dictionary)
+	_assert_true(restored_harvest.collected_resources.has(removed_keys[0]), "restored collected key prevents a generated resource from reappearing")
+	_assert_true(SaveManager.request_save(restored_player, restored_world_state, 44.0, true), "manual save requests a backup")
+	SaveManager.flush_pending_save()
+	_assert_true(_directory_count(root.path_join("backups")) >= 1, "manual save creates a recoverable backup directory")
+	var corrupt_file := FileAccess.open(root.path_join("world.json"), FileAccess.WRITE)
+	corrupt_file.store_string("{broken save")
+	corrupt_file.flush()
+	corrupt_file = null
+	SaveManager.clear_current_world()
+	_assert_true(not SaveManager.load_world(world_id), "corrupted world metadata is rejected")
+	_assert_true("损坏" in SaveManager.last_error and "world.json" in SaveManager.last_error, "corrupted save reports a clear file-specific error")
+	SaveManager.clear_current_world()
+	_remove_test_save_tree(root)
+
+
 func _test_stream_planner() -> void:
 	var center := Vector2i(-12, 7)
 	_assert_equal(ChunkStreamPlanner.coordinates_in_radius(center, ChunkStreamPlanner.ACTIVE_RADIUS).size(), 25, "active radius contains at most 25 chunks")
@@ -416,6 +481,9 @@ func _test_player_scene_contract() -> void:
 	_assert_equal(player.health, 75.0, "player damage updates health")
 	player.heal(10.0)
 	_assert_equal(player.health, 85.0, "player healing clamps correctly")
+	player.restore_snapshot({"position": [-96.5, 160.25], "health": 64.0, "maximum_health": 120.0, "stamina": 33.0, "maximum_stamina": 80.0})
+	_assert_equal(player.position, Vector2(-96.5, 160.25), "player restore applies signed position")
+	_assert_true(player.health == 64.0 and player.maximum_health == 120.0 and player.stamina == 33.0 and player.maximum_stamina == 80.0, "player restore applies health and stamina attributes")
 	player.queue_free()
 
 
@@ -476,11 +544,54 @@ func _test_main_menu_layout() -> void:
 	var panel := menu_scene.find_child("MenuPanel", true, false) as Control
 	var version_label := menu_scene.find_child("VersionLabel", true, false) as Control
 	var footer := menu_scene.find_child("OfflineFooter", true, false) as Control
+	var world_panel := menu_scene.find_child("WorldCreationPanel", true, false) as Control
+	var world_name := menu_scene.find_child("WorldNameInput", true, false) as LineEdit
+	var seed_input := menu_scene.find_child("SeedInput", true, false) as LineEdit
+	var continue_button := menu_scene.find_child("ContinueButton", true, false) as Button
 	_assert_true(panel != null and version_label != null and footer != null, "menu layout nodes exist")
+	_assert_true(world_panel != null and world_name != null and seed_input != null and continue_button != null, "world creation and continue controls exist")
 	if panel != null and version_label != null and footer != null:
 		_assert_true(panel.get_global_rect().encloses(version_label.get_global_rect()), "version label stays inside menu panel")
 		_assert_true(panel.get_global_rect().encloses(footer.get_global_rect()), "footer stays inside menu panel")
 	menu_scene.queue_free()
+
+
+func _read_json_for_test(path: String) -> Dictionary:
+	var file := FileAccess.open(path, FileAccess.READ)
+	if file == null:
+		return {}
+	var parsed: Variant = JSON.parse_string(file.get_as_text())
+	return parsed as Dictionary if parsed is Dictionary else {}
+
+
+func _json_file_count(path: String) -> int:
+	var directory := DirAccess.open(path)
+	if directory == null:
+		return 0
+	var result := 0
+	for filename in directory.get_files():
+		result += 1 if filename.ends_with(".json") else 0
+	return result
+
+
+func _directory_count(path: String) -> int:
+	var directory := DirAccess.open(path)
+	return directory.get_directories().size() if directory != null else 0
+
+
+func _remove_test_save_tree(path: String) -> void:
+	var saves_root := ProjectSettings.globalize_path(SaveManager.SAVE_ROOT)
+	if not path.begins_with(saves_root.path_join("world_")):
+		push_error("Refusing to remove a path outside the test save root: %s" % path)
+		return
+	var directory := DirAccess.open(path)
+	if directory == null:
+		return
+	for filename in directory.get_files():
+		DirAccess.remove_absolute(path.path_join(filename))
+	for dirname in directory.get_directories():
+		_remove_test_save_tree(path.path_join(dirname))
+	DirAccess.remove_absolute(path)
 
 
 func _assert_true(value: bool, label: String) -> void:

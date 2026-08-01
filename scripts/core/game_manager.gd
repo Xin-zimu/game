@@ -32,8 +32,20 @@ func change_scene(scene_path: String) -> void:
 	EventBus.scene_changed.emit(scene_path)
 
 
-func start_new_game() -> void:
+func start_new_game(world_name := "无尽边境", seed_text := "无尽边境") -> bool:
+	if not SaveManager.create_world(world_name, seed_text):
+		EventBus.notify(SaveManager.last_error, &"error")
+		return false
 	change_scene(GAME_SCENE)
+	return true
+
+
+func continue_game() -> bool:
+	if not SaveManager.load_most_recent_world():
+		EventBus.notify(SaveManager.last_error, &"error")
+		return false
+	change_scene(GAME_SCENE)
+	return true
 
 
 func return_to_menu() -> void:
@@ -42,4 +54,5 @@ func return_to_menu() -> void:
 
 func quit_game() -> void:
 	LogManager.info("GameManager", "Quit requested")
+	SaveManager.flush_pending_save()
 	get_tree().quit()

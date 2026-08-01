@@ -1,24 +1,45 @@
 extends Node2D
 
 const PLAYER_SCENE := preload("res://scenes/player/player.tscn")
-const SEED_TEXT := "无尽边境"
 const START_CHUNK := Vector2i(-1, -4)
+const AUTOSAVE_INTERVAL := 30.0
 
-var _world_seed := WorldSeed.from_text(SEED_TEXT)
+var _seed_text := WorldSeed.DEFAULT_TEXT
+var _world_seed := WorldSeed.from_text(WorldSeed.DEFAULT_TEXT)
 var _player: PlayerCharacter
 var _stream_manager: ChunkStreamManager
 var _generation_hud: GenerationHud
+var _game_time_seconds := 0.0
+var _autosave_elapsed := 0.0
+var _exit_save_requested := false
 
 
 func _ready() -> void:
 	GameManager.current_state = GameManager.State.PLAYING
 	GameManager.current_scene_path = GameManager.GAME_SCENE
+	get_tree().auto_accept_quit = false
+	if SaveManager.has_current_world():
+		_seed_text = SaveManager.current_seed_text()
+		_world_seed = SaveManager.current_seed()
+		_game_time_seconds = SaveManager.current_game_time_seconds()
 	_build_world()
-	LogManager.info("WorldSandbox", "V0.6.0 deterministic resources and interaction stream ready")
+	LogManager.info("WorldSandbox", "V0.7.0 save-enabled world ready: %s" % (SaveManager.current_world_name() if SaveManager.has_current_world() else "temporary"))
+
+
+func _process(delta: float) -> void:
+	_game_time_seconds += delta
+	if not SaveManager.has_current_world():
+		return
+	_autosave_elapsed += delta
+	if _autosave_elapsed >= AUTOSAVE_INTERVAL:
+		_autosave_elapsed = 0.0
+		_request_save(false)
 
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("pause"):
+		_request_save(true)
+		_exit_save_requested = true
 		GameManager.return_to_menu()
 	elif event.is_action_pressed("toggle_noise_view"):
 		_stream_manager.toggle_noise_view()
@@ -28,13 +49,36 @@ func _unhandled_input(event: InputEvent) -> void:
 		_stream_manager.interact_with_nearest_resource()
 	elif event.is_action_pressed("cycle_tool"):
 		_stream_manager.cycle_active_tool()
+	elif event.is_action_pressed("manual_save"):
+		_request_save(true)
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST:
+		_request_save(true)
+		SaveManager.flush_pending_save()
+		get_tree().quit()
+
+
+func _exit_tree() -> void:
+	get_tree().auto_accept_quit = true
+	if SaveManager.has_current_world() and not _exit_save_requested and _player != null and _stream_manager != null:
+		_request_save(false)
 
 
 func _build_world() -> void:
-	var initial_chunk := TerrainGenerator.new(_world_seed).generate_chunk(START_CHUNK)
+	var player_snapshot := SaveManager.loaded_player_snapshot() if SaveManager.has_current_world() else {}
+	var start_chunk := START_CHUNK
+	if player_snapshot.has("position") and (player_snapshot["position"] as Array).size() == 2:
+		var saved_position := Vector2(float(player_snapshot["position"][0]), float(player_snapshot["position"][1]))
+		start_chunk = WorldCoordinates.tile_to_chunk(WorldCoordinates.world_pixel_to_tile(saved_position))
+	var initial_chunk := TerrainGenerator.new(_world_seed).generate_chunk(start_chunk)
 	_player = PLAYER_SCENE.instantiate() as PlayerCharacter
-	var spawn_tile := TerrainGenerator.new(_world_seed).find_land_near(initial_chunk)
-	_player.position = WorldCoordinates.tile_to_world_pixel(spawn_tile, true)
+	if player_snapshot.is_empty():
+		var spawn_tile := TerrainGenerator.new(_world_seed).find_land_near(initial_chunk)
+		_player.position = WorldCoordinates.tile_to_world_pixel(spawn_tile, true)
+	else:
+		_player.restore_snapshot(player_snapshot)
 	var camera := _player.get_node("Camera2D") as PixelCamera
 	camera.configure_unbounded()
 	add_child(_player)
@@ -45,11 +89,24 @@ func _build_world() -> void:
 	canvas.add_child(ResourceHud.new())
 	_generation_hud = GenerationHud.new()
 	canvas.add_child(_generation_hud)
-	_generation_hud.configure(SEED_TEXT, _world_seed, START_CHUNK, initial_chunk.checksum)
+	_generation_hud.configure(_seed_text, _world_seed, start_chunk, initial_chunk.checksum)
 	canvas.add_child(DebugPanel.new())
 	_stream_manager = ChunkStreamManager.new()
 	_stream_manager.configure(_world_seed, _player, initial_chunk)
+	if SaveManager.has_current_world():
+		_stream_manager.restore_persistence(SaveManager.loaded_world_state_snapshot())
 	_stream_manager.metrics_changed.connect(_generation_hud.update_streaming)
 	add_child(_stream_manager)
 	if "--noise-view" in OS.get_cmdline_user_args():
 		_stream_manager.toggle_noise_view()
+
+
+func _request_save(create_backup: bool) -> void:
+	if not SaveManager.has_current_world() or _player == null or _stream_manager == null:
+		return
+	SaveManager.request_save(
+		_player.persistence_snapshot(),
+		_stream_manager.persistence_snapshot(),
+		_game_time_seconds,
+		create_backup
+	)

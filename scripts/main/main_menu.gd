@@ -5,6 +5,10 @@ const COLOR_MUTED := Color("91a99a")
 const COLOR_ACCENT := Color("f5c96a")
 
 var _settings_panel: PanelContainer
+var _world_creation_panel: PanelContainer
+var _world_name_input: LineEdit
+var _seed_input: LineEdit
+var _menu_error_label: Label
 
 
 func _ready() -> void:
@@ -93,15 +97,16 @@ func _build_interface() -> void:
 
 	var subheading := Label.new()
 	subheading.name = "VersionLabel"
-	subheading.text = "多层地形与生态群系"
+	subheading.text = "基础存档与区块差异"
 	subheading.add_theme_color_override("font_color", COLOR_MUTED)
 	menu.add_child(subheading)
 	menu.add_child(HSeparator.new())
 
 	menu.add_child(_make_button("新建世界", _on_new_game, true))
 	var continue_button := _make_button("继续游戏", _on_continue_game)
-	continue_button.disabled = true
-	continue_button.tooltip_text = "首个存档将在 V0.7.0 开放"
+	continue_button.name = "ContinueButton"
+	continue_button.disabled = not SaveManager.has_any_world()
+	continue_button.tooltip_text = "载入最近世界" if not continue_button.disabled else "尚未创建世界"
 	menu.add_child(continue_button)
 	menu.add_child(_make_button("设置", _on_settings))
 	menu.add_child(_make_button("退出", _on_quit))
@@ -116,10 +121,21 @@ func _build_interface() -> void:
 	footer.add_theme_font_size_override("font_size", 12)
 	footer.add_theme_color_override("font_color", Color("5c7366"))
 	menu.add_child(footer)
+	_menu_error_label = Label.new()
+	_menu_error_label.name = "MenuErrorLabel"
+	_menu_error_label.text = ""
+	_menu_error_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_menu_error_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_menu_error_label.add_theme_font_size_override("font_size", 12)
+	_menu_error_label.add_theme_color_override("font_color", Color("e58674"))
+	menu.add_child(_menu_error_label)
 
 	_settings_panel = _build_settings_panel()
 	_settings_panel.visible = false
 	add_child(_settings_panel)
+	_world_creation_panel = _build_world_creation_panel()
+	_world_creation_panel.visible = false
+	add_child(_world_creation_panel)
 
 	var debug_panel := DebugPanel.new()
 	add_child(debug_panel)
@@ -179,6 +195,71 @@ func _build_settings_panel() -> PanelContainer:
 	return overlay
 
 
+func _build_world_creation_panel() -> PanelContainer:
+	var overlay := PanelContainer.new()
+	overlay.name = "WorldCreationPanel"
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	overlay.position = Vector2(-255, -220)
+	overlay.custom_minimum_size = Vector2(510, 440)
+	overlay.add_theme_stylebox_override("panel", _panel_style(Color("0a171f")))
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 36)
+	margin.add_theme_constant_override("margin_right", 36)
+	margin.add_theme_constant_override("margin_top", 30)
+	margin.add_theme_constant_override("margin_bottom", 30)
+	overlay.add_child(margin)
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override("separation", 12)
+	margin.add_child(column)
+	var title := Label.new()
+	title.text = "创建世界"
+	title.add_theme_font_size_override("font_size", 30)
+	title.add_theme_color_override("font_color", COLOR_TEXT)
+	column.add_child(title)
+	var explanation := Label.new()
+	explanation.text = "世界名称用于本地存档；文字或数字种子决定基础世界。"
+	explanation.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	explanation.add_theme_color_override("font_color", COLOR_MUTED)
+	column.add_child(explanation)
+	var name_label := Label.new()
+	name_label.text = "世界名称"
+	name_label.add_theme_color_override("font_color", COLOR_MUTED)
+	column.add_child(name_label)
+	_world_name_input = LineEdit.new()
+	_world_name_input.name = "WorldNameInput"
+	_world_name_input.text = "无尽边境"
+	_world_name_input.max_length = 32
+	_world_name_input.custom_minimum_size = Vector2(0, 44)
+	column.add_child(_world_name_input)
+	var seed_label := Label.new()
+	seed_label.text = "世界种子"
+	seed_label.add_theme_color_override("font_color", COLOR_MUTED)
+	column.add_child(seed_label)
+	_seed_input = LineEdit.new()
+	_seed_input.name = "SeedInput"
+	_seed_input.text = "无尽边境"
+	_seed_input.placeholder_text = "留空时使用世界名称"
+	_seed_input.max_length = 64
+	_seed_input.custom_minimum_size = Vector2(0, 44)
+	column.add_child(_seed_input)
+	var error_label := Label.new()
+	error_label.name = "WorldCreationErrorLabel"
+	error_label.text = ""
+	error_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	error_label.add_theme_color_override("font_color", Color("e58674"))
+	column.add_child(error_label)
+	var buttons := HBoxContainer.new()
+	buttons.add_theme_constant_override("separation", 12)
+	column.add_child(buttons)
+	var cancel := _make_button("取消", _close_world_creation)
+	cancel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	buttons.add_child(cancel)
+	var create := _make_button("创建并进入", _create_world, true)
+	create.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	buttons.add_child(create)
+	return overlay
+
+
 func _make_toggle(label_text: String, setting_key: String) -> CheckButton:
 	var toggle := CheckButton.new()
 	toggle.text = label_text
@@ -216,14 +297,20 @@ func _button_style(color: Color) -> StyleBoxFlat:
 
 
 func _on_new_game() -> void:
-	GameManager.start_new_game()
+	_menu_error_label.text = ""
+	_settings_panel.visible = false
+	_world_creation_panel.visible = true
+	_world_name_input.grab_focus()
 
 
 func _on_continue_game() -> void:
-	EventBus.notify("存档功能将在 V0.7.0 开放")
+	_menu_error_label.text = ""
+	if not GameManager.continue_game():
+		_menu_error_label.text = SaveManager.last_error
 
 
 func _on_settings() -> void:
+	_world_creation_panel.visible = false
 	_settings_panel.visible = true
 
 
@@ -234,3 +321,14 @@ func _close_settings() -> void:
 
 func _on_quit() -> void:
 	GameManager.quit_game()
+
+
+func _close_world_creation() -> void:
+	_world_creation_panel.visible = false
+
+
+func _create_world() -> void:
+	var error_label := _world_creation_panel.find_child("WorldCreationErrorLabel", true, false) as Label
+	error_label.text = ""
+	if not GameManager.start_new_game(_world_name_input.text, _seed_input.text):
+		error_label.text = SaveManager.last_error

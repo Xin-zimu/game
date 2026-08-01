@@ -61,3 +61,28 @@ func quantity(item_id: StringName) -> int:
 
 func remaining_durability(resource_key: String, resource_code: int, catalog: ResourceCatalog) -> int:
 	return int(_durability.get(resource_key, catalog.durability_for_code(resource_code)))
+
+
+func restore_snapshot(collected_values: Array, inventory_values: Dictionary) -> void:
+	collected_resources.clear()
+	_durability.clear()
+	_inventory.clear()
+	for value in collected_values:
+		var key := String(value)
+		if key.split(":").size() == 3:
+			collected_resources[key] = true
+	for item_id in inventory_values:
+		var quantity_value := maxi(int(inventory_values[item_id]), 0)
+		if quantity_value > 0:
+			_inventory[String(item_id)] = quantity_value
+
+
+func persistence_snapshot() -> Dictionary:
+	var collected: Array[String] = []
+	for key in collected_resources.keys():
+		collected.append(String(key))
+	collected.sort()
+	return {
+		"collected_resources": collected,
+		"inventory": inventory_snapshot(),
+	}
