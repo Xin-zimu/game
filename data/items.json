@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "inventory_slot_count": 24,
+  "hotbar_slot_count": 8,
+  "categories": [
+    {"id": "material", "display_name": "材料", "sort_order": 10},
+    {"id": "food", "display_name": "食物", "sort_order": 20}
+  ],
+  "items": [
+    {"id": "wood", "display_name": "木材", "category": "material", "max_stack": 50, "color": "b97845"},
+    {"id": "stone", "display_name": "石料", "category": "material", "max_stack": 50, "color": "9aa1a0"},
+    {"id": "fiber", "display_name": "纤维", "category": "material", "max_stack": 50, "color": "79a85b"},
+    {"id": "wildflower", "display_name": "野花", "category": "material", "max_stack": 30, "color": "e8a6c4"},
+    {"id": "berry", "display_name": "浆果", "category": "food", "max_stack": 20, "color": "c94f69"}
+  ]
+}

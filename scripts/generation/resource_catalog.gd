@@ -14,7 +14,7 @@ var _resources_by_id: Dictionary = {}
 var _resources_by_code: Dictionary = {}
 var _tools: Array[Dictionary] = []
 var _tools_by_id: Dictionary = {}
-var _items_by_id: Dictionary = {}
+var _item_catalog := ItemCatalog.new()
 
 
 func _init(config_path := DEFAULT_CONFIG_PATH) -> void:
@@ -131,13 +131,11 @@ func tool_power(tool_id: StringName) -> int:
 
 
 func item_display_name(item_id: StringName) -> String:
-	var definition := _items_by_id.get(String(item_id), {}) as Dictionary
-	return String(definition.get("display_name", item_id))
+	return _item_catalog.display_name(item_id)
 
 
 func item_color(item_id: StringName) -> Color:
-	var definition := _items_by_id.get(String(item_id), {}) as Dictionary
-	return Color(String(definition.get("color", "ffffff")))
+	return _item_catalog.item_color(item_id)
 
 
 func candidate_code_for_biome(biome_id: StringName, roll: float) -> int:
@@ -177,16 +175,9 @@ func _load_config() -> void:
 			return
 		_tools.append(definition)
 		_tools_by_id[tool_id] = definition
-	for value in _root.get("items", []) as Array:
-		if not value is Dictionary:
-			_fail("Item entry is not an object in %s" % _config_path)
-			return
-		var definition := (value as Dictionary).duplicate(true)
-		var item_id := String(definition.get("id", ""))
-		if item_id.is_empty() or _items_by_id.has(item_id):
-			_fail("Item IDs must be unique and non-empty in %s" % _config_path)
-			return
-		_items_by_id[item_id] = definition
+	if not _item_catalog.is_valid():
+		_fail("Item catalog is invalid: %s" % _item_catalog.error_message())
+		return
 	for value in _root.get("resources", []) as Array:
 		if not value is Dictionary:
 			_fail("Resource entry is not an object in %s" % _config_path)
@@ -204,7 +195,7 @@ func _load_config() -> void:
 		for drop_value in definition.get("drops", []) as Array:
 			var drop := drop_value as Dictionary
 			var item_id := String(drop.get("item_id", ""))
-			if not _items_by_id.has(item_id) or int(drop.get("minimum", 0)) < 1 or int(drop.get("maximum", 0)) < int(drop.get("minimum", 0)):
+			if not _item_catalog.has_item(StringName(item_id)) or int(drop.get("minimum", 0)) < 1 or int(drop.get("maximum", 0)) < int(drop.get("minimum", 0)):
 				_fail("Resource '%s' has an invalid drop rule" % resource_id)
 				return
 		_resources.append(definition)

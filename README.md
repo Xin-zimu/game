@@ -2,7 +2,7 @@
 
 一款完全本地运行的 2D 俯视角程序化无限世界生存探索 RPG。项目按照可回退、可测试、可独立运行的版本路线，从 V0.1.0 连续迭代至最终 V5.0.0。
 
-> 当前稳定版本：**V0.7.0 - 基础存档**
+> 当前稳定版本：**V0.8.0 - 物品和背包**
 
 ## 核心原则
 
@@ -16,7 +16,7 @@
 
 Stable tags are created by the repository release gate only when the matching test report is marked `PASS`; existing tags are never moved.
 
-## V0.7.0 已包含
+## V0.8.0 已包含
 
 - Godot 4.7.1 工程与标准目录结构
 - 中文像素风主菜单与可向任意方向探索的程序化世界
@@ -43,7 +43,11 @@ Stable tags are created by the repository release gate only when the matching te
 - 树木、石头和浆果丛的共享 `TileMapLayer` 物理碰撞
 - 徒手、斧头和镐子工具切换、交互提示、耐久命中与采集闪烁动画
 - 确定性物品掉落、32 槽对象池、同类溢出合并和近距离自动拾取
-- 会话内资源差异与背包计数；返回已探索区块时不会恢复已采集资源
+- 独立 `data/items.json` 物品资源、稳定唯一 ID、材料/食物分类和逐物品堆叠上限
+- 24 格背包、前 8 格快捷栏、拖拽交换/合并、右键拆半、整组丢弃和分类整理
+- 背包满时未拾取数量继续留在地面，拒绝路径不会复制或吞掉物品
+- 版本化格子/堆叠存档、完整顺序校验和，以及 V0.7 数量字典到 V0.8 格子的迁移
+- 会话内资源差异与持久背包；返回已探索区块时不会恢复已采集资源
 - 世界创建界面、1–32 字世界名称和文字/数字种子
 - `world.json` 世界元数据与 `player.json` 位置、生命、体力、工具和采集计数
 - 仅在永久变化后创建的 `chunks/surface/<x>_<y>.json` 区块差异
@@ -78,7 +82,7 @@ GODOT_BIN=/path/to/godot tools/run_tests.sh
 GODOT_BIN=/path/to/godot tools/build_release.sh
 ```
 
-游戏中按 `E` 采集，按 `Q` 在徒手/斧头/镐子之间切换，按 `Ctrl+S` 手动保存；按 `N` 循环切换地形/群系/气候/海拔视图，按 `B` 切换区块边界。
+游戏中按 `E` 采集，按 `Q` 在徒手/斧头/镐子之间切换，按 `I` 或 `Tab` 打开背包，按 `1–8` 选择快捷栏，背包内按 `R` 整理，按 `Ctrl+S` 手动保存；按 `N` 循环切换地形/群系/气候/海拔视图，按 `B` 切换区块边界。
 
 ## 项目结构
 

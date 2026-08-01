@@ -201,6 +201,58 @@ func persistence_snapshot() -> Dictionary:
 	return snapshot
 
 
+func inventory_state_snapshot() -> Dictionary:
+	return _harvest_state.inventory_state_snapshot()
+
+
+func move_inventory_slot(from_index: int, to_index: int) -> bool:
+	var changed := _harvest_state.move_inventory_slot(from_index, to_index)
+	if changed:
+		_emit_inventory_state()
+	else:
+		EventBus.interaction_feedback.emit(_harvest_state.inventory_model().last_error, false)
+	return changed
+
+
+func split_inventory_stack(from_index: int, to_index: int, quantity := -1) -> bool:
+	var changed := _harvest_state.split_inventory_stack(from_index, to_index, quantity)
+	if changed:
+		_emit_inventory_state()
+	else:
+		EventBus.interaction_feedback.emit(_harvest_state.inventory_model().last_error, false)
+	return changed
+
+
+func discard_inventory_slot(index: int, quantity := -1) -> bool:
+	var removed := _harvest_state.discard_inventory_slot(index, quantity)
+	if removed.is_empty():
+		EventBus.interaction_feedback.emit(_harvest_state.inventory_model().last_error, false)
+		return false
+	var item_id := StringName(removed["item_id"])
+	var amount := int(removed["quantity"])
+	if _drop_pool == null or not _drop_pool.spawn_drop(item_id, amount, _player.global_position + Vector2(18, 10)):
+		_harvest_state.collect_item(item_id, amount)
+		EventBus.interaction_feedback.emit("地面掉落池已满，物品已退回背包", false)
+		_emit_inventory_state()
+		return false
+	EventBus.interaction_feedback.emit("已丢弃%s ×%d" % [_resource_catalog.item_display_name(item_id), amount], true)
+	_emit_inventory_state()
+	return true
+
+
+func sort_inventory() -> void:
+	_harvest_state.sort_inventory()
+	_emit_inventory_state()
+	EventBus.interaction_feedback.emit("背包已按分类整理", true)
+
+
+func select_hotbar_slot(index: int) -> bool:
+	var changed := _harvest_state.select_hotbar_slot(index)
+	if changed:
+		_emit_inventory_state()
+	return changed
+
+
 func metrics_snapshot() -> Dictionary:
 	var preload_ready := 0
 	var sleeping := 0
@@ -353,18 +405,28 @@ func _emit_metrics() -> void:
 func _collect_nearby_drops() -> void:
 	if _drop_pool == null or _player == null:
 		return
-	var pickups := _drop_pool.collect_near(_player.global_position, _resource_catalog.pickup_radius_pixels())
-	if pickups.is_empty():
+	var transfer := _drop_pool.transfer_near(
+		_player.global_position,
+		_resource_catalog.pickup_radius_pixels(),
+		func(item_id: StringName, quantity: int) -> int:
+			var result := _harvest_state.collect_item(item_id, quantity)
+			return int(result["accepted"])
+	)
+	var pickups := transfer["transferred"] as Array
+	var blocked := transfer["blocked"] as Array
+	if pickups.is_empty() and blocked.is_empty():
 		return
 	var messages: Array[String] = []
 	for value in pickups:
 		var pickup := value as Dictionary
 		var item_id := pickup["item_id"] as StringName
 		var quantity := int(pickup["quantity"])
-		_harvest_state.collect_item(item_id, quantity)
 		messages.append("%s ×%d" % [_resource_catalog.item_display_name(item_id), quantity])
-	EventBus.inventory_changed.emit(_harvest_state.inventory_snapshot())
-	EventBus.interaction_feedback.emit("拾取 " + "、".join(messages), true)
+	_emit_inventory_state()
+	if not blocked.is_empty():
+		EventBus.interaction_feedback.emit("背包已满，未拾取的物品仍留在地面", false)
+	elif not messages.is_empty():
+		EventBus.interaction_feedback.emit("拾取 " + "、".join(messages), true)
 
 
 func _update_resource_prompt() -> void:
@@ -389,7 +451,12 @@ func _update_resource_prompt() -> void:
 func _emit_tool_and_inventory() -> void:
 	var tool_id := active_tool_id()
 	EventBus.active_tool_changed.emit(tool_id, _resource_catalog.tool_display_name(tool_id))
+	_emit_inventory_state()
+
+
+func _emit_inventory_state() -> void:
 	EventBus.inventory_changed.emit(_harvest_state.inventory_snapshot())
+	EventBus.inventory_state_changed.emit(_harvest_state.inventory_state_snapshot())
 
 
 func _restore_pending_persistence() -> void:
@@ -397,7 +464,7 @@ func _restore_pending_persistence() -> void:
 		return
 	_harvest_state.restore_snapshot(
 		_pending_persistence.get("collected_resources", []) as Array,
-		_pending_persistence.get("inventory", {}) as Dictionary
+		_pending_persistence.get("inventory", {})
 	)
 	var requested_tool := StringName(_pending_persistence.get("active_tool", "hands"))
 	var requested_index := _tool_ids.find(requested_tool)

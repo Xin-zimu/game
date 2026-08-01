@@ -1,17 +1,17 @@
 # Architecture
 
-Infinite Frontier uses a layered, data-oriented Godot architecture. This document records the foundation through V0.7.0 and will evolve with every version.
+Infinite Frontier uses a layered, data-oriented Godot architecture. This document records the foundation through V0.8.0 and will evolve with every version.
 
 ## Runtime layers
 
-| Layer | Responsibility | Components through V0.7.0 |
+| Layer | Responsibility | Components through V0.8.0 |
 |---|---|---|
 | Core | Application lifecycle, settings, logging, events | `GameManager`, `SettingsManager`, `SaveManager`, `LogManager`, `EventBus` |
-| Presentation | Scenes, menus and debug UI | `main_menu.gd`, `world_sandbox.gd`, `GameplayHud`, `GenerationHud`, `ResourceHud`, `DebugPanel` |
-| Gameplay | Player, interaction, combat and progression | `PlayerCharacter`, `PlayerMotor`, `PlayerVisual`, `PixelCamera`, `ResourceHarvestState` |
+| Presentation | Scenes, menus and debug UI | `main_menu.gd`, `world_sandbox.gd`, `GameplayHud`, `GenerationHud`, `ResourceHud`, `InventoryPanel`, `DebugPanel` |
+| Gameplay | Player, interaction, combat and progression | `PlayerCharacter`, `PlayerMotor`, `PlayerVisual`, `PixelCamera`, `ResourceHarvestState`, `InventoryModel` |
 | World | Coordinates, chunk data, persistence and streaming | `WorldCoordinates`, `ChunkData`, `ChunkStreamPlanner`, `ChunkGenerationJob`, `ChunkStreamManager`, `ChunkRenderer`, `ResourceChunkLayer`, `WorldDropPool`, `SaveWriteJob` |
 | Generation | Pure deterministic world data | `WorldSeed`, `BiomeCatalog`, `ResourceCatalog`, `ResourceGenerator`, `TerrainGenerator` |
-| Data | Stable IDs and data-driven content | `data/biomes.json`, `data/resources.json` |
+| Data | Stable IDs and data-driven content | `data/biomes.json`, `data/resources.json`, `data/items.json`, `ItemData`, `ItemCatalog` |
 
 ## Architectural rules
 
@@ -57,9 +57,15 @@ Accepted coordinates, resource codes and visual variants are packed into `ChunkD
 
 ## Resource interaction ownership
 
-`ChunkStreamManager` performs proximity queries against active chunk data and delegates hit rules to `ResourceHarvestState`. The state layer owns partial durability, collected keys and inventory counts. A collected key is never resolved twice and remains hidden when the chunk renderer is recreated. V0.6 keeps this difference state for the running session; V0.7 serializes the same model to disk.
+`ChunkStreamManager` performs proximity queries against active chunk data and delegates hit rules to `ResourceHarvestState`. The state layer owns partial durability, collected keys and the slot inventory. A collected key is never resolved twice and remains hidden when the chunk renderer is recreated. V0.7 serializes resource differences; V0.8 replaces bridge counts with exact slot/stack persistence.
 
 `WorldDropPool` preallocates 32 visual objects. Destroyed resources resolve bounded item stacks from the stable resource key, then activate or merge a pooled object. Nearby mature drops return to the pool after automatic pickup. `ResourceHud` receives prompt, tool, inventory and feedback events; it never calculates harvest rules.
+
+## Item and inventory ownership
+
+`data/items.json` is the canonical source for unique item IDs, presentation, category and stack limit. `ItemCatalog` validates it and materializes immutable `ItemData` resources. Resource drops reference those IDs but do not duplicate item definitions.
+
+`InventoryModel` is a pure `RefCounted` value model with 24 ordered slots; the first eight slots are also the hotbar. Add, move/combine, split, discard and sort operations mutate only validated slot dictionaries and expose conservation-friendly return values. `InventoryPanel` translates drag, right-click and button input into manager API calls; it never owns stack rules. A pooled ground drop is decremented only by the quantity the inventory confirms, so a full inventory leaves the remainder active in the world.
 
 ## Persistence ownership
 
@@ -68,3 +74,5 @@ Accepted coordinates, resource codes and visual variants are packed into `ChunkD
 `SaveWriteJob` receives a deep-copied snapshot and performs JSON transaction writes and backup copies on `WorkerThreadPool`. It owns no nodes and calls no UI or gameplay APIs. Completion returns duration, difference-file count and an actionable error; `SaveManager` publishes that result on the main thread.
 
 World metadata, player attributes and generated-world differences are separate documents. Collected resource keys are grouped by mathematical chunk coordinate. Only groups with at least one permanent change are written, so visiting or unloading an unmodified chunk cannot create a save file. See `docs/save-format.md` for the normative schema.
+
+Save format 3 stores a normalized inventory snapshot containing schema, slot/hotbar sizes, selected hotbar index and all 24 ordered slot objects. Format-2 count dictionaries are accepted only by the explicit migration path, converted through `InventoryModel`, and committed as format 3 on the next save.

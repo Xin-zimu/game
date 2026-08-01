@@ -2,12 +2,12 @@
 
 ## Version
 
-- Game version: `0.7.0`
-- Save version: `2`
+- Game version: `0.8.0`
+- Save version: `3`
 - Generation version: `4`
 - Storage root: `user://saves`
 
-Save and generation formats are independent. Save version 2 is the first complete world/player/difference format. A world whose save or generation version does not match is rejected with a file-specific error; silent coercion is not allowed.
+Save and generation formats are independent. Save version 3 adds ordered inventory slots and hotbar selection. Version 2 is accepted only by the documented migration path; any other save version or a mismatched generation version is rejected with a file-specific error.
 
 ## Directory layout
 
@@ -34,9 +34,9 @@ The directory ID is local and collision-resistant; the player-facing name remain
 
 ```json
 {
-  "save_version": 2,
+  "save_version": 3,
   "generation_version": 4,
-  "game_version": "0.7.0",
+  "game_version": "0.8.0",
   "world_id": "world_123456789",
   "world_name": "无尽边境",
   "seed_text": "无尽边境",
@@ -56,18 +56,29 @@ The 64-bit seed is stored together with its original text so the UI can reproduc
 
 ```json
 {
-  "save_version": 2,
+  "save_version": 3,
   "position": [-2048.5, 1024.25],
   "health": 73.0,
   "maximum_health": 100.0,
   "stamina": 41.0,
   "maximum_stamina": 100.0,
   "active_tool": "axe",
-  "inventory": {"wood": 7, "stone": 3}
+  "inventory": {
+    "schema_version": 1,
+    "slot_count": 24,
+    "hotbar_slot_count": 8,
+    "selected_hotbar_slot": 0,
+    "slots": [
+      {"item_id": "wood", "quantity": 7},
+      {"item_id": "stone", "quantity": 3},
+      {}, {}, {}, {}, {}, {}, {}, {}, {}, {},
+      {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}
+    ]
+  }
 }
 ```
 
-The V0.6 item counts are preserved as player attributes. V0.8 replaces this dictionary with the versioned slot/stack inventory model while retaining migration responsibility.
+The slot array always contains exactly 24 objects in player-defined order. Empty objects represent empty slots; occupied entries must reference a known stable item ID and contain `1..max_stack`. Slots 0–7 are the hotbar, and the selected index must be `0..7`. Loading reconstructs this object through `InventoryModel`, normalizing JSON numbers back to integers before gameplay sees the snapshot.
 
 ## Chunk differences
 
@@ -75,7 +86,7 @@ Generated terrain, climate, biomes and unmodified resources are never written. A
 
 ```json
 {
-  "save_version": 2,
+  "save_version": 3,
   "generation_version": 4,
   "layer": "surface",
   "chunk": [-1, -5],
@@ -105,4 +116,8 @@ Manual saves copy the existing metadata, player document and difference files in
 
 ## Corruption behavior
 
-Loading validates readable JSON objects, exact save/generation versions, required metadata, player position/attributes and difference arrays. Parse failures include the filename, parser line and message. The Continue action leaves the player on the menu and displays `SaveManager.last_error`; it never silently starts a new world over damaged data.
+Loading validates readable JSON objects, save version 3 or migratable version 2, exact generation version, required metadata, player position/attributes, inventory slots and difference arrays. Parse failures include the filename, parser line and message. The Continue action leaves the player on the menu and displays `SaveManager.last_error`; it never silently starts a new world over damaged data.
+
+## Format-2 migration
+
+V0.7 player documents stored `inventory` as an item-to-count dictionary. V0.8 accepts metadata, player and chunk-difference documents whose save version is exactly 2, validates their other fields, then feeds the count dictionary through canonical stack limits into a 24-slot model. Unknown items or quantities that exceed capacity fail with an actionable migration error. Metadata, player state and generated differences remain in memory as format 3 and are transactionally committed as format 3 by the next save. Migration never changes generation format or recreates unmodified chunks.

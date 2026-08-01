@@ -33,8 +33,12 @@ REQUIRED_PATHS = (
     "scripts/generation/resource_catalog.gd",
     "scripts/generation/resource_generator.gd",
     "scripts/generation/terrain_generator.gd",
+    "scripts/items/item_data.gd",
+    "scripts/items/item_catalog.gd",
+    "scripts/items/inventory_model.gd",
     "data/biomes.json",
     "data/resources.json",
+    "data/items.json",
     "scripts/world/world_coordinates.gd",
     "scripts/world/chunk_data.gd",
     "scripts/world/chunk_renderer.gd",
@@ -46,6 +50,7 @@ REQUIRED_PATHS = (
     "scripts/world/world_drop_pool.gd",
     "scripts/gameplay/resource_harvest_state.gd",
     "scripts/ui/resource_hud.gd",
+    "scripts/ui/inventory_panel.gd",
     "assets/fonts/NotoSansCJKsc-ProjectSubset.otf",
     "tests/run_all.gd",
     "tests/test_runner.tscn",
@@ -68,11 +73,11 @@ def main() -> int:
             failures.append(f"autoload not registered: {autoload}")
 
     version_text = (ROOT / "scripts/core/game_version.gd").read_text(encoding="utf-8")
-    if 'const VERSION := "0.7.0"' not in version_text:
-        failures.append("game version is not 0.7.0")
+    if 'const VERSION := "0.8.0"' not in version_text:
+        failures.append("game version is not 0.8.0")
 
-    if "const SAVE_VERSION := 2" not in version_text:
-        failures.append("save version is not 2")
+    if "const SAVE_VERSION := 3" not in version_text:
+        failures.append("save version is not 3")
 
     if "const GENERATION_VERSION := 4" not in version_text:
         failures.append("generation version is not 4")

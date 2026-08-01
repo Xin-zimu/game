@@ -92,16 +92,32 @@ func spawn_drop(item_id: StringName, quantity: int, world_position: Vector2) -> 
 
 
 func collect_near(world_position: Vector2, radius: float) -> Array[Dictionary]:
-	var result: Array[Dictionary] = []
+	var transfer := transfer_near(world_position, radius, func(_item_id: StringName, quantity: int) -> int:
+		return quantity
+	)
+	return transfer["transferred"] as Array[Dictionary]
+
+
+func transfer_near(world_position: Vector2, radius: float, receiver: Callable) -> Dictionary:
+	var transferred: Array[Dictionary] = []
+	var blocked: Array[Dictionary] = []
 	var radius_squared := radius * radius
 	for visual in _pool:
 		if not visual.active or visual.age < 0.20:
 			continue
 		if visual.base_position.distance_squared_to(world_position) > radius_squared:
 			continue
-		result.append({"item_id": visual.item_id, "quantity": visual.quantity})
-		visual.deactivate()
-	return result
+		var accepted := clampi(int(receiver.call(visual.item_id, visual.quantity)), 0, visual.quantity)
+		if accepted > 0:
+			transferred.append({"item_id": visual.item_id, "quantity": accepted})
+			visual.quantity -= accepted
+			if visual.quantity <= 0:
+				visual.deactivate()
+			else:
+				visual.queue_redraw()
+		if visual.active and visual.quantity > 0:
+			blocked.append({"item_id": visual.item_id, "quantity": visual.quantity})
+	return {"transferred": transferred, "blocked": blocked}
 
 
 func active_count() -> int:
@@ -113,3 +129,11 @@ func active_count() -> int:
 
 func capacity() -> int:
 	return _capacity
+
+
+func active_quantity(item_id: StringName = &"") -> int:
+	var result := 0
+	for visual in _pool:
+		if visual.active and (item_id.is_empty() or visual.item_id == item_id):
+			result += visual.quantity
+	return result

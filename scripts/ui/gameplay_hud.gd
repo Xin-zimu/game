@@ -59,9 +59,9 @@ func _build_hud() -> void:
 	hints.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
 	hints.offset_left = 260
 	hints.offset_right = -260
-	hints.offset_top = -52
-	hints.offset_bottom = -18
-	hints.text = "WASD 移动 · Shift 奔跑 · Space 翻滚 · E 采集 · Q 工具 · Ctrl+S 保存 · N 视图 · B 边界 · Esc 返回"
+	hints.offset_top = -132
+	hints.offset_bottom = -104
+	hints.text = "WASD 移动 · Shift 奔跑 · Space 翻滚 · E 采集 · Q 工具 · I 背包 · 1–8 快捷栏 · Ctrl+S 保存 · Esc 返回"
 	hints.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hints.add_theme_font_size_override("font_size", 15)
 	hints.add_theme_color_override("font_color", Color("dce9df"))

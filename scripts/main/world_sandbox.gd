@@ -9,6 +9,7 @@ var _world_seed := WorldSeed.from_text(WorldSeed.DEFAULT_TEXT)
 var _player: PlayerCharacter
 var _stream_manager: ChunkStreamManager
 var _generation_hud: GenerationHud
+var _inventory_panel: InventoryPanel
 var _game_time_seconds := 0.0
 var _autosave_elapsed := 0.0
 var _exit_save_requested := false
@@ -23,7 +24,7 @@ func _ready() -> void:
 		_world_seed = SaveManager.current_seed()
 		_game_time_seconds = SaveManager.current_game_time_seconds()
 	_build_world()
-	LogManager.info("WorldSandbox", "V0.7.0 save-enabled world ready: %s" % (SaveManager.current_world_name() if SaveManager.has_current_world() else "temporary"))
+	LogManager.info("WorldSandbox", "V0.8.0 inventory-enabled world ready: %s" % (SaveManager.current_world_name() if SaveManager.has_current_world() else "temporary"))
 
 
 func _process(delta: float) -> void:
@@ -38,6 +39,9 @@ func _process(delta: float) -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("pause"):
+		if _inventory_panel != null and _inventory_panel.is_inventory_open():
+			_inventory_panel.set_inventory_open(false)
+			return
 		_request_save(true)
 		_exit_save_requested = true
 		GameManager.return_to_menu()
@@ -51,6 +55,14 @@ func _unhandled_input(event: InputEvent) -> void:
 		_stream_manager.cycle_active_tool()
 	elif event.is_action_pressed("manual_save"):
 		_request_save(true)
+	elif event.is_action_pressed("toggle_inventory"):
+		_inventory_panel.toggle_inventory()
+	elif event.is_action_pressed("inventory_sort") and _inventory_panel.is_inventory_open():
+		_stream_manager.sort_inventory()
+	elif event is InputEventKey and event.pressed and not event.echo:
+		var key := (event as InputEventKey).physical_keycode
+		if key >= KEY_1 and key <= KEY_8:
+			_stream_manager.select_hotbar_slot(int(key - KEY_1))
 
 
 func _notification(what: int) -> void:
@@ -97,6 +109,9 @@ func _build_world() -> void:
 		_stream_manager.restore_persistence(SaveManager.loaded_world_state_snapshot())
 	_stream_manager.metrics_changed.connect(_generation_hud.update_streaming)
 	add_child(_stream_manager)
+	_inventory_panel = InventoryPanel.new()
+	canvas.add_child(_inventory_panel)
+	_inventory_panel.configure(_stream_manager)
 	if "--noise-view" in OS.get_cmdline_user_args():
 		_stream_manager.toggle_noise_view()
 

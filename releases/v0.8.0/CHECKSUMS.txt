@@ -1,0 +1,2 @@
+e5449a7e162995f12c463ede2cf03b5499f09b1bfb3bd6ea97c5cf6912fa4ae5  InfiniteFrontier-v0.8.0-windows.zip
+31cbde8304c7a82f3390e831a508b8b8c367ba40c397b1ccc4f3d7400e2bddb3  InfiniteFrontier-v0.8.0-source.zip

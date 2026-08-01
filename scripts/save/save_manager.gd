@@ -76,9 +76,9 @@ func create_world(world_name: String, seed_text: String) -> bool:
 		"stamina": 100.0,
 		"maximum_stamina": 100.0,
 		"active_tool": "hands",
-		"inventory": {},
+		"inventory": InventoryModel.new().snapshot(),
 	}
-	_world_state_snapshot = {"collected_resources": [], "inventory": {}, "active_tool": "hands"}
+	_world_state_snapshot = {"collected_resources": [], "inventory": _player_snapshot["inventory"], "active_tool": "hands"}
 	var world_result := _write_initial_json(root_path.path_join("world.json"), _metadata)
 	if not world_result:
 		return false
@@ -145,6 +145,20 @@ func load_world(world_id: String) -> bool:
 	var player_error := _validate_player(player)
 	if not player_error.is_empty():
 		return _fail("玩家存档损坏：%s" % player_error)
+	var loaded_save_version := int(metadata.get("save_version", 0))
+	if loaded_save_version == 2:
+		var migrated_inventory := InventoryModel.new()
+		if not migrated_inventory.restore_legacy_counts(player.get("inventory", {}) as Dictionary):
+			return _fail("玩家存档迁移失败：%s" % migrated_inventory.last_error)
+		player["inventory"] = migrated_inventory.snapshot()
+		player["save_version"] = GameVersion.SAVE_VERSION
+		metadata["save_version"] = GameVersion.SAVE_VERSION
+		metadata["game_version"] = GameVersion.VERSION
+		LogManager.info("SaveManager", "Migrated world %s from save format 2 to 3" % world_id)
+	else:
+		var normalized_inventory := InventoryModel.new()
+		normalized_inventory.restore_snapshot(player["inventory"] as Dictionary)
+		player["inventory"] = normalized_inventory.snapshot()
 	var difference_result := _load_chunk_differences(root_path.path_join("chunks/surface"))
 	if not bool(difference_result["ok"]):
 		return _fail("区块差异损坏：%s" % difference_result["error"])
@@ -327,7 +341,7 @@ func _load_chunk_differences(chunks_path: String) -> Dictionary:
 		if not bool(read_result["ok"]):
 			return {"ok": false, "error": "%s：%s" % [filename, read_result["error"]], "collected_resources": []}
 		var difference := read_result["data"] as Dictionary
-		if int(difference.get("save_version", 0)) != GameVersion.SAVE_VERSION \
+		if not [2, GameVersion.SAVE_VERSION].has(int(difference.get("save_version", 0))) \
 				or int(difference.get("generation_version", 0)) != GameVersion.GENERATION_VERSION \
 				or String(difference.get("layer", "")) != "surface":
 			return {"ok": false, "error": "%s 的版本或世界层无效" % filename, "collected_resources": []}
@@ -345,7 +359,7 @@ func _load_chunk_differences(chunks_path: String) -> Dictionary:
 
 
 func _validate_metadata(metadata: Dictionary) -> String:
-	if int(metadata.get("save_version", 0)) != GameVersion.SAVE_VERSION:
+	if not [2, GameVersion.SAVE_VERSION].has(int(metadata.get("save_version", 0))):
 		return "存档版本 %s 不受 V%s 支持" % [metadata.get("save_version", "缺失"), GameVersion.VERSION]
 	if int(metadata.get("generation_version", 0)) != GameVersion.GENERATION_VERSION:
 		return "生成版本 %s 与当前版本 %d 不兼容" % [metadata.get("generation_version", "缺失"), GameVersion.GENERATION_VERSION]
@@ -356,7 +370,8 @@ func _validate_metadata(metadata: Dictionary) -> String:
 
 
 func _validate_player(player: Dictionary) -> String:
-	if int(player.get("save_version", 0)) != GameVersion.SAVE_VERSION:
+	var player_save_version := int(player.get("save_version", 0))
+	if not [2, GameVersion.SAVE_VERSION].has(player_save_version):
 		return "玩家存档版本无效"
 	var position_value: Variant = player.get("position", [])
 	if not position_value is Array or (position_value as Array).size() != 2:
@@ -364,6 +379,13 @@ func _validate_player(player: Dictionary) -> String:
 	for key in ["health", "maximum_health", "stamina", "maximum_stamina"]:
 		if not player.has(key):
 			return "玩家属性缺少 %s" % key
+	var inventory_value: Variant = player.get("inventory", {})
+	if not inventory_value is Dictionary:
+		return "背包数据必须是对象"
+	if player_save_version == GameVersion.SAVE_VERSION:
+		var inventory := InventoryModel.new()
+		if not inventory.restore_snapshot(inventory_value as Dictionary):
+			return inventory.last_error
 	return ""
 
 
