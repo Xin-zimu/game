@@ -1,5 +1,30 @@
 # Development Log
 
+## V0.9.0 - Tools and crafting
+
+- Added a validated recipe catalog with hands, workbench and campfire stations and ten progression recipes.
+- Added discovery unlocks, station-gated recipe views and a dedicated keyboard-accessible crafting panel.
+- Implemented atomic simulation-and-commit crafting so every rejection preserves exact material counts.
+- Added wooden and stone axes, pickaxes and swords, workbench, campfire, torch and cooked berries.
+- Added per-instance durability through inventory, hotbar, sort, discard, pooled pickup and disk persistence.
+- Applied equipped tool type and power to harvesting; broken tools are removed immediately after an accepted hit.
+- Advanced save format to 4 and inventory schema to 2 with explicit format-2 and format-3 migrations.
+- Expanded the suite from 227 to 281 passing checks, including crafting transactions, speed, breakage, durability transfer and disk restoration.
+
+### Iteration findings
+
+- A capacity check based only on current free slots can reject or corrupt recipes whose inputs free the needed output slot. Crafting now clones the inventory, performs the exact deductions and output insertion, then commits only the successful result.
+- Stack-only slot data cannot represent two copies of the same tool at different wear levels. Durable items therefore use stack size one and retain their own durability value across every movement path.
+- Function closures created inside recipe-row loops can capture changing loop state. Button handlers now bind immutable recipe IDs at construction time.
+- The expanded Chinese crafting vocabulary exceeded the previous runtime font subset. The subset was regenerated from current sources and data, producing 439 required glyphs with zero missing.
+
+### Decisions
+
+- Unlock state records discovered stable item IDs rather than derived recipe booleans, so future recipe balancing cannot silently rewrite player discovery history.
+- Possessing a workbench or campfire enables its recipes in V0.9; placement and proximity belong to the later building stage.
+- Wooden/stone swords are fully craftable durable inventory items, while attack behavior begins in V0.10 rather than being pre-implemented here.
+- Cooked berries are a valid basic-food output; consumption and hunger effects remain the survival-system stage.
+
 ## V0.8.0 - Items and inventory
 
 - Added canonical item resources with stable IDs, categories, colors and stack limits.

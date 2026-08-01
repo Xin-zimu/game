@@ -18,6 +18,9 @@ func _ready() -> void:
 	_test_resource_catalog_contract()
 	_test_item_catalog_contract()
 	_test_inventory_model()
+	_test_recipe_catalog_contract()
+	_test_crafting_system()
+	_test_tool_speed_and_durability()
 	_test_deterministic_generation()
 	_test_biome_regions()
 	_test_resource_generation()
@@ -32,6 +35,7 @@ func _ready() -> void:
 	await _test_generation_hud_layout()
 	await _test_resource_hud_layout()
 	await _test_inventory_panel_layout()
+	await _test_crafting_panel_layout()
 	await _test_main_menu_layout()
 	_finish()
 
@@ -44,8 +48,8 @@ func _test_project_resources() -> void:
 
 
 func _test_version_contract() -> void:
-	_assert_equal(GameVersion.VERSION, "0.8.0", "version constant")
-	_assert_equal(GameVersion.SAVE_VERSION, 3, "save version incremented for the V0.8 slot inventory format")
+	_assert_equal(GameVersion.VERSION, "0.9.0", "version constant")
+	_assert_equal(GameVersion.SAVE_VERSION, 4, "save version incremented for V0.9 durability and crafting unlocks")
 	_assert_equal(GameVersion.GENERATION_VERSION, 4, "generation version incremented")
 
 
@@ -56,6 +60,7 @@ func _test_event_bus_contract() -> void:
 	_assert_true(EventBus.has_signal("resource_prompt_changed"), "resource prompt signal exists")
 	_assert_true(EventBus.has_signal("inventory_changed"), "inventory signal exists")
 	_assert_true(EventBus.has_signal("inventory_state_changed"), "slot inventory signal exists")
+	_assert_true(EventBus.has_signal("crafting_state_changed"), "crafting recipe-view signal exists")
 	_assert_true(EventBus.has_signal("save_status_changed"), "save status signal exists")
 
 
@@ -135,12 +140,15 @@ func _test_item_catalog_contract() -> void:
 	_assert_equal(catalog.slot_count(), 24, "inventory capacity is data-driven at 24 slots")
 	_assert_equal(catalog.hotbar_slot_count(), 8, "hotbar exposes the first eight inventory slots")
 	var ids := catalog.item_ids()
-	_assert_equal(ids.size(), 5, "item catalog contains five unique V0.8 item IDs")
+	_assert_equal(ids.size(), 16, "item catalog contains 16 unique material, tool, station, food and utility IDs")
 	for item_id in ItemCatalog.REQUIRED_ITEM_IDS:
 		_assert_true(ids.has(StringName(item_id)), "item catalog contains stable unique ID %s" % item_id)
 	_assert_equal(catalog.category_name(&"wood"), "材料", "wood exposes its item category")
 	_assert_equal(catalog.category_name(&"berry"), "食物", "berry exposes its item category")
 	_assert_true(catalog.maximum_stack(&"wood") == 50 and catalog.maximum_stack(&"berry") == 20, "stack limits come from item data resources")
+	_assert_true(catalog.tool_kind(&"wood_axe") == &"axe" and catalog.tool_power(&"stone_axe") == 2, "wood and stone tool kinds/power are data-driven")
+	_assert_true(catalog.maximum_durability(&"wood_pickaxe") == 30 and catalog.maximum_durability(&"stone_pickaxe") == 60, "tool durability comes from item resources")
+	_assert_true(catalog.station_kind(&"workbench") == &"workbench" and catalog.station_kind(&"campfire") == &"campfire", "workbench and campfire are stable station items")
 
 
 func _test_inventory_model() -> void:
@@ -179,6 +187,93 @@ func _test_inventory_model() -> void:
 	var migrated := InventoryModel.new()
 	_assert_true(migrated.restore_legacy_counts({"wood": 7, "stone": 3}), "V0.7 count dictionary migrates into V0.8 slots")
 	_assert_true(migrated.quantity(&"wood") == 7 and migrated.quantity(&"stone") == 3, "legacy migration preserves exact item totals")
+
+
+func _test_recipe_catalog_contract() -> void:
+	var catalog := RecipeCatalog.new()
+	_assert_true(catalog.is_valid(), "external recipe configuration loads and validates")
+	_assert_equal(catalog.station_ids(), [&"hands", &"workbench", &"campfire"], "hands, workbench and campfire stations are data-driven")
+	_assert_equal(catalog.recipes().size(), 10, "recipe catalog contains wooden/stone tools, stations, torch and food")
+	_assert_true(catalog.recipe(&"wood_axe") != null and catalog.recipe(&"stone_pickaxe") != null, "wooden and stone tool recipes use stable IDs")
+	_assert_true(catalog.recipe(&"torch").output_quantity == 2, "torch recipe produces its configured output quantity")
+
+
+func _test_crafting_system() -> void:
+	var inventory := InventoryModel.new()
+	inventory.add_item(&"branch", 2)
+	inventory.add_item(&"fiber", 2)
+	var crafting := CraftingSystem.new(inventory)
+	crafting.refresh_discoveries()
+	_assert_true(crafting.is_unlocked(&"wood_axe"), "discovering branch and fiber unlocks the wooden axe recipe")
+	var before_insufficient := inventory.snapshot()
+	var insufficient := crafting.craft(&"wood_axe")
+	_assert_true(not bool(insufficient["ok"]) and "材料不足" in String(insufficient["message"]), "insufficient materials prevent crafting with an explicit reason")
+	_assert_equal(inventory.snapshot(), before_insufficient, "failed crafting consumes no materials")
+	inventory.add_item(&"branch", 1)
+	var crafted_wood := crafting.craft(&"wood_axe")
+	_assert_true(bool(crafted_wood["ok"]), "hands crafting creates a wooden axe after requirements are met")
+	_assert_true(inventory.quantity(&"branch") == 0 and inventory.quantity(&"fiber") == 0, "successful crafting deducts the exact wooden-axe materials")
+	var wood_axe_slot := _find_item_slot(inventory, &"wood_axe")
+	_assert_true(wood_axe_slot >= 0 and int(inventory.slot(wood_axe_slot)["durability"]) == 30, "crafted wooden axe starts at full durability")
+	_assert_true(not crafting.station_available(&"workbench") and not crafting.is_unlocked(&"stone_axe"), "stone tools stay locked without a workbench")
+	inventory.add_item(&"workbench", 1)
+	inventory.add_item(&"branch", 10)
+	inventory.add_item(&"stone", 10)
+	inventory.add_item(&"fiber", 10)
+	crafting.refresh_discoveries()
+	_assert_true(crafting.station_available(&"workbench") and crafting.is_unlocked(&"stone_axe"), "possessing a workbench and discovering stone unlocks stone tools")
+	var branch_before := inventory.quantity(&"branch")
+	var stone_before := inventory.quantity(&"stone")
+	var fiber_before := inventory.quantity(&"fiber")
+	_assert_true(bool(crafting.craft(&"stone_axe")["ok"]), "workbench crafts a stone axe")
+	_assert_true(inventory.quantity(&"branch") == branch_before - 2 and inventory.quantity(&"stone") == stone_before - 4 and inventory.quantity(&"fiber") == fiber_before - 2, "stone axe deducts every material exactly once")
+	var stone_axe_slot := _find_item_slot(inventory, &"stone_axe")
+	_assert_true(stone_axe_slot >= 0 and int(inventory.slot(stone_axe_slot)["durability"]) == 60, "crafted stone axe starts at full durability")
+	inventory.add_item(&"campfire", 1)
+	inventory.add_item(&"berry", 3)
+	crafting.refresh_discoveries()
+	_assert_true(crafting.station_available(&"campfire") and bool(crafting.craft(&"cooked_berries")["ok"]), "campfire crafts the basic cooked-berry food")
+	_assert_true(inventory.quantity(&"berry") == 0 and inventory.quantity(&"cooked_berries") == 1, "basic food recipe deducts berries and adds one output")
+	var unlock_snapshot := crafting.persistence_snapshot()
+	var restored_unlocks := CraftingSystem.new(InventoryModel.new())
+	_assert_true(restored_unlocks.restore_snapshot(unlock_snapshot) and restored_unlocks.is_unlocked(&"wood_axe"), "discovery unlock conditions persist after materials are spent")
+	var full_inventory := InventoryModel.new()
+	for _index in 22:
+		full_inventory.add_item(&"wood_sword", 1)
+	full_inventory.add_item(&"wood", 50)
+	full_inventory.add_item(&"fiber", 50)
+	var full_crafting := CraftingSystem.new(full_inventory)
+	full_crafting.refresh_discoveries()
+	var full_counts := full_inventory.count_snapshot()
+	var no_space := full_crafting.craft(&"torch")
+	_assert_true(not bool(no_space["ok"]) and "空间不足" in String(no_space["message"]), "crafting rejects an output when no slot can receive it")
+	_assert_equal(full_inventory.count_snapshot(), full_counts, "no-space crafting transaction deducts nothing")
+
+
+func _test_tool_speed_and_durability() -> void:
+	var resource_catalog := ResourceCatalog.new()
+	var tree_code := resource_catalog.code_for_id(&"tree")
+	var wood_state := ResourceHarvestState.new()
+	var stone_state := ResourceHarvestState.new()
+	var wood_hit := wood_state.hit("100:100:%d" % tree_code, tree_code, &"axe", resource_catalog, 1)
+	var stone_hit := stone_state.hit("101:100:%d" % tree_code, tree_code, &"axe", resource_catalog, 2)
+	_assert_true(int(wood_hit["remaining"]) == 2 and int(stone_hit["remaining"]) == 1, "stone tool power harvests the same resource faster than wood")
+	var inventory := InventoryModel.new()
+	inventory.add_item(&"wood_axe", 1)
+	var tool_slot := _find_item_slot(inventory, &"wood_axe")
+	for _index in 29:
+		inventory.damage_tool_at(tool_slot, 1)
+	_assert_equal(int(inventory.slot(tool_slot)["durability"]), 1, "tool durability decrements exactly once per accepted use")
+	var broken := inventory.damage_tool_at(tool_slot, 1)
+	_assert_true(bool(broken["broken"]) and inventory.slot(tool_slot).is_empty(), "tool is removed cleanly when durability reaches zero")
+	var sort_inventory := InventoryModel.new()
+	sort_inventory.add_item(&"stone_pickaxe", 1)
+	var pickaxe_slot := _find_item_slot(sort_inventory, &"stone_pickaxe")
+	sort_inventory.damage_tool_at(pickaxe_slot, 7)
+	sort_inventory.add_item(&"wood", 4)
+	sort_inventory.sort_inventory()
+	pickaxe_slot = _find_item_slot(sort_inventory, &"stone_pickaxe")
+	_assert_equal(int(sort_inventory.slot(pickaxe_slot)["durability"]), 53, "inventory sorting preserves individual tool durability")
 
 
 func _test_deterministic_generation() -> void:
@@ -356,14 +451,20 @@ func _test_save_system() -> void:
 	var root := SaveManager.current_world_root_absolute()
 	_assert_true(FileAccess.file_exists(root.path_join("world.json")) and FileAccess.file_exists(root.path_join("player.json")), "new world contains metadata and player documents")
 	var metadata := _read_json_for_test(root.path_join("world.json"))
-	_assert_equal(int(metadata.get("save_version", 0)), 3, "world metadata records save format 3")
+	_assert_equal(int(metadata.get("save_version", 0)), 4, "world metadata records save format 4")
 	_assert_equal(int(metadata.get("generation_version", 0)), 4, "world metadata records generation format 4")
 	_assert_equal(String(metadata.get("world_name", "")), "自动测试边境", "world metadata preserves the world name")
 	_assert_equal(String(metadata.get("seed_text", "")), "存档种子-070", "world metadata preserves the text seed")
 	var chunks_path := root.path_join("chunks/surface")
 	_assert_equal(_json_file_count(chunks_path), 0, "new unmodified world creates no chunk difference file")
 	var initial_player := SaveManager.loaded_player_snapshot()
-	var empty_state := {"collected_resources": [], "inventory": InventoryModel.new().snapshot(), "active_tool": "hands"}
+	var empty_inventory := InventoryModel.new()
+	var empty_state := {
+		"collected_resources": [],
+		"inventory": empty_inventory.snapshot(),
+		"crafting_state": CraftingSystem.new(empty_inventory).persistence_snapshot(),
+		"active_tool": "hands",
+	}
 	_assert_true(SaveManager.request_save(initial_player, empty_state, 1.25, false), "automatic save request accepts an immutable snapshot")
 	SaveManager.flush_pending_save()
 	_assert_equal(_json_file_count(chunks_path), 0, "saving an unmodified world still creates no chunk difference file")
@@ -375,10 +476,18 @@ func _test_save_system() -> void:
 	var changed_inventory := InventoryModel.new()
 	changed_inventory.add_item(&"wood", 7)
 	changed_inventory.add_item(&"stone", 3)
+	changed_inventory.add_item(&"wood_axe", 1)
+	var saved_tool_slot := _find_item_slot(changed_inventory, &"wood_axe")
+	changed_inventory.damage_tool_at(saved_tool_slot, 7)
+	changed_inventory.select_hotbar(saved_tool_slot)
 	var changed_inventory_snapshot := changed_inventory.snapshot()
+	var changed_crafting := CraftingSystem.new(changed_inventory)
+	changed_crafting.refresh_discoveries()
+	var changed_crafting_snapshot := changed_crafting.persistence_snapshot()
 	var changed_state := {
 		"collected_resources": removed_keys,
 		"inventory": changed_inventory_snapshot,
+		"crafting_state": changed_crafting_snapshot,
 		"active_tool": "axe",
 	}
 	var dispatch_started := Time.get_ticks_usec()
@@ -399,6 +508,11 @@ func _test_save_system() -> void:
 	var restored_removed := restored_world_state["collected_resources"] as Array
 	_assert_true(restored_removed.has(removed_keys[0]) and restored_removed.has(removed_keys[1]), "destroyed resources restore from chunk differences")
 	_assert_equal(restored_world_state["inventory"], changed_inventory_snapshot, "V0.8 slot order and stack quantities restore identically")
+	var restored_inventory_model := InventoryModel.new()
+	restored_inventory_model.restore_snapshot(restored_world_state["inventory"] as Dictionary)
+	var restored_tool_slot := _find_item_slot(restored_inventory_model, &"wood_axe")
+	_assert_true(restored_tool_slot == saved_tool_slot and int(restored_inventory_model.slot(restored_tool_slot)["durability"]) == 23, "selected hotbar tool and individual durability restore exactly")
+	_assert_equal(restored_world_state["crafting_state"], changed_crafting_snapshot, "V0.9 recipe discoveries restore identically")
 	_assert_equal(String(restored_world_state["active_tool"]), "axe", "active tool restores with player attributes")
 	var restored_harvest := ResourceHarvestState.new()
 	_assert_true(restored_harvest.restore_snapshot(restored_removed, restored_world_state["inventory"]), "restored inventory snapshot passes schema validation")
@@ -421,15 +535,33 @@ func _test_save_system() -> void:
 			legacy_difference["save_version"] = 2
 			_write_json_for_test(chunks_path.path_join(filename), legacy_difference)
 	SaveManager.clear_current_world()
-	_assert_true(SaveManager.load_world(world_id), "V0.7 save format loads through the explicit V0.8 migration path")
+	_assert_true(SaveManager.load_world(world_id), "V0.7 save format loads through the explicit V0.9 migration path")
 	var migrated_state := SaveManager.loaded_world_state_snapshot()
 	var migrated_inventory := InventoryModel.new()
 	_assert_true(migrated_inventory.restore_snapshot(migrated_state["inventory"] as Dictionary), "migrated legacy counts produce a valid slot inventory")
 	_assert_true(migrated_inventory.quantity(&"wood") == 7 and migrated_inventory.quantity(&"stone") == 3, "save migration preserves legacy item totals exactly")
-	_assert_true(SaveManager.request_save(SaveManager.loaded_player_snapshot(), migrated_state, 45.0, false), "migrated world can be committed as save format 3")
+	_assert_true(SaveManager.request_save(SaveManager.loaded_player_snapshot(), migrated_state, 45.0, false), "migrated world can be committed as save format 4")
 	SaveManager.flush_pending_save()
-	_assert_equal(int(_read_json_for_test(root.path_join("world.json")).get("save_version", 0)), 3, "next save commits migrated world metadata as format 3")
-	_assert_equal(int(_read_json_for_test(root.path_join("player.json")).get("save_version", 0)), 3, "next save commits migrated player inventory as format 3")
+	_assert_equal(int(_read_json_for_test(root.path_join("world.json")).get("save_version", 0)), 4, "next save commits V0.7 world metadata as format 4")
+	_assert_equal(int(_read_json_for_test(root.path_join("player.json")).get("save_version", 0)), 4, "next save commits V0.7 player inventory as format 4")
+	var v08_metadata := _read_json_for_test(root.path_join("world.json"))
+	v08_metadata["save_version"] = 3
+	var v08_player := _read_json_for_test(root.path_join("player.json"))
+	v08_player["save_version"] = 3
+	(v08_player["inventory"] as Dictionary)["schema_version"] = 1
+	v08_player.erase("crafting_state")
+	_write_json_for_test(root.path_join("world.json"), v08_metadata)
+	_write_json_for_test(root.path_join("player.json"), v08_player)
+	for filename in difference_directory.get_files():
+		if filename.ends_with(".json"):
+			var v08_difference := _read_json_for_test(chunks_path.path_join(filename))
+			v08_difference["save_version"] = 3
+			_write_json_for_test(chunks_path.path_join(filename), v08_difference)
+	SaveManager.clear_current_world()
+	_assert_true(SaveManager.load_world(world_id), "V0.8 save format 3 migrates to durability-capable format 4")
+	_assert_equal(int(SaveManager.loaded_player_snapshot().get("save_version", 0)), 4, "V0.8 migration normalizes player save version in memory")
+	_assert_equal(int((SaveManager.loaded_world_state_snapshot()["inventory"] as Dictionary).get("schema_version", 0)), 2, "V0.8 inventory schema upgrades from 1 to 2")
+	_assert_true((SaveManager.loaded_world_state_snapshot()["crafting_state"] as Dictionary).has("discovered_items"), "V0.8 migration initializes crafting discovery state")
 	var corrupt_file := FileAccess.open(root.path_join("world.json"), FileAccess.WRITE)
 	corrupt_file.store_string("{broken save")
 	corrupt_file.flush()
@@ -546,7 +678,7 @@ func _test_drop_pool() -> void:
 	_assert_true(pool.spawn_drop(&"wood", 3, Vector2(12, 10)), "full pool merges a matching item stack")
 	_assert_equal(pool.active_count(), 2, "drop object count remains capped at pool capacity")
 	pool._process(0.25)
-	var blocked := pool.transfer_near(Vector2(10, 10), 24.0, func(_item_id: StringName, _quantity: int) -> int:
+	var blocked := pool.transfer_near(Vector2(10, 10), 24.0, func(_item_id: StringName, _quantity: int, _metadata: Dictionary) -> int:
 		return 0
 	)
 	_assert_true((blocked["transferred"] as Array).is_empty() and not (blocked["blocked"] as Array).is_empty(), "full inventory refuses pickup explicitly")
@@ -555,6 +687,14 @@ func _test_drop_pool() -> void:
 	_assert_equal(pickup.size(), 1, "automatic pickup collects only nearby mature drops")
 	_assert_equal(int((pickup[0] as Dictionary)["quantity"]), 5, "merged drop stack preserves total quantity")
 	_assert_equal(pool.active_count(), 1, "picked-up object returns to the pool")
+	_assert_true(pool.spawn_drop(&"wood_axe", 1, Vector2(12, 10), {"durability": 11}), "discarded damaged tool enters a free ground-drop slot")
+	pool._process(0.25)
+	var tool_pickup := pool.collect_near(Vector2(12, 10), 24.0)
+	var found_tool_durability := false
+	for stack in tool_pickup:
+		if StringName((stack as Dictionary).get("item_id", "")) == &"wood_axe":
+			found_tool_durability = int((stack as Dictionary).get("durability", 0)) == 11
+	_assert_true(found_tool_durability, "discard and pickup preserve individual tool durability metadata")
 	pool.queue_free()
 
 
@@ -650,6 +790,32 @@ func _test_inventory_panel_layout() -> void:
 	panel.queue_free()
 
 
+func _test_crafting_panel_layout() -> void:
+	var inventory := InventoryModel.new()
+	inventory.add_item(&"branch", 4)
+	inventory.add_item(&"fiber", 3)
+	var crafting := CraftingSystem.new(inventory)
+	crafting.refresh_discoveries()
+	var panel := CraftingPanel.new()
+	add_child(panel)
+	await get_tree().process_frame
+	panel._on_crafting_state_changed(crafting.recipe_views())
+	var window := panel.find_child("CraftingWindow", true, false) as Control
+	var tabs := panel.find_child("CraftingStationTabs", true, false) as HBoxContainer
+	var list := panel.find_child("CraftingRecipeList", true, false) as VBoxContainer
+	var status := panel.find_child("CraftingStatusLabel", true, false) as Label
+	_assert_true(window != null and tabs != null and list != null and status != null, "crafting window, station tabs, recipe list and status exist")
+	_assert_equal(tabs.get_child_count(), 3, "crafting UI exposes hands, workbench and campfire tabs")
+	_assert_true(panel.find_child("Recipe_wood_axe", true, false) != null and panel.find_child("Craft_wood_axe", true, false) != null, "unlocked wooden-axe recipe has a data-driven row and action")
+	panel.set_crafting_open(true)
+	await get_tree().process_frame
+	_assert_true(panel.is_crafting_open(), "crafting panel can be opened independently")
+	_assert_true(get_viewport().get_visible_rect().encloses(window.get_global_rect()), "crafting window remains inside the 1280×720 viewport")
+	panel.set_crafting_open(false)
+	_assert_true(not panel.is_crafting_open(), "crafting panel closes without mutating recipes")
+	panel.queue_free()
+
+
 func _test_main_menu_layout() -> void:
 	var packed := load("res://scenes/main/main.tscn") as PackedScene
 	var menu_scene := packed.instantiate() as Control
@@ -683,6 +849,13 @@ func _write_json_for_test(path: String, data: Dictionary) -> void:
 	if file != null:
 		file.store_string(JSON.stringify(data, "\t", true, true) + "\n")
 		file.flush()
+
+
+func _find_item_slot(inventory: InventoryModel, item_id: StringName) -> int:
+	for index in inventory.slot_count():
+		if StringName(inventory.slot(index).get("item_id", "")) == item_id:
+			return index
+	return -1
 
 
 func _json_file_count(path: String) -> int:

@@ -1,17 +1,17 @@
 # Architecture
 
-Infinite Frontier uses a layered, data-oriented Godot architecture. This document records the foundation through V0.8.0 and will evolve with every version.
+Infinite Frontier uses a layered, data-oriented Godot architecture. This document records the foundation through V0.9.0 and will evolve with every version.
 
 ## Runtime layers
 
-| Layer | Responsibility | Components through V0.8.0 |
+| Layer | Responsibility | Components through V0.9.0 |
 |---|---|---|
 | Core | Application lifecycle, settings, logging, events | `GameManager`, `SettingsManager`, `SaveManager`, `LogManager`, `EventBus` |
-| Presentation | Scenes, menus and debug UI | `main_menu.gd`, `world_sandbox.gd`, `GameplayHud`, `GenerationHud`, `ResourceHud`, `InventoryPanel`, `DebugPanel` |
-| Gameplay | Player, interaction, combat and progression | `PlayerCharacter`, `PlayerMotor`, `PlayerVisual`, `PixelCamera`, `ResourceHarvestState`, `InventoryModel` |
+| Presentation | Scenes, menus and debug UI | `main_menu.gd`, `world_sandbox.gd`, `GameplayHud`, `GenerationHud`, `ResourceHud`, `InventoryPanel`, `CraftingPanel`, `DebugPanel` |
+| Gameplay | Player, interaction, combat and progression | `PlayerCharacter`, `PlayerMotor`, `PlayerVisual`, `PixelCamera`, `ResourceHarvestState`, `InventoryModel`, `CraftingSystem` |
 | World | Coordinates, chunk data, persistence and streaming | `WorldCoordinates`, `ChunkData`, `ChunkStreamPlanner`, `ChunkGenerationJob`, `ChunkStreamManager`, `ChunkRenderer`, `ResourceChunkLayer`, `WorldDropPool`, `SaveWriteJob` |
 | Generation | Pure deterministic world data | `WorldSeed`, `BiomeCatalog`, `ResourceCatalog`, `ResourceGenerator`, `TerrainGenerator` |
-| Data | Stable IDs and data-driven content | `data/biomes.json`, `data/resources.json`, `data/items.json`, `ItemData`, `ItemCatalog` |
+| Data | Stable IDs and data-driven content | `data/biomes.json`, `data/resources.json`, `data/items.json`, `data/recipes.json`, `ItemData`, `ItemCatalog`, `RecipeData`, `RecipeCatalog` |
 
 ## Architectural rules
 
@@ -67,6 +67,14 @@ Accepted coordinates, resource codes and visual variants are packed into `ChunkD
 
 `InventoryModel` is a pure `RefCounted` value model with 24 ordered slots; the first eight slots are also the hotbar. Add, move/combine, split, discard and sort operations mutate only validated slot dictionaries and expose conservation-friendly return values. `InventoryPanel` translates drag, right-click and button input into manager API calls; it never owns stack rules. A pooled ground drop is decremented only by the quantity the inventory confirms, so a full inventory leaves the remainder active in the world.
 
+Durable items are individual stack-size-one slot objects with an integer `durability` field. Sorting preserves each instance, discarding carries the field into `WorldDropPool`, and pickup passes it back to the inventory. `ChunkStreamManager` derives the active tool from the selected hotbar slot, applies catalog power only when the resource accepts that tool kind, then consumes one durability for an accepted hit. A broken tool is removed exactly once.
+
+## Crafting ownership
+
+`data/recipes.json` defines stable station IDs, ingredients, outputs and discovery requirements. `RecipeCatalog` validates every station, material, output and unlock item against the canonical item catalog. `CraftingSystem` owns discovery state and crafting rules; `CraftingPanel` displays recipe views and forwards a recipe ID without changing inventory data directly.
+
+Each craft clones the complete inventory, deducts inputs and adds output on that clone, then commits the normalized snapshot only when every operation succeeds. Insufficient materials, a missing station, a locked recipe or missing output capacity therefore leaves the original slots byte-for-byte unchanged. V0.9 models workbench and campfire availability by possession of their station item; placement in the world remains a later building-system responsibility.
+
 ## Persistence ownership
 
 `SaveManager` is an autoload because it must survive scene changes and join outstanding file tasks at shutdown. It owns world selection, schema validation, immutable save snapshots and last-error state. It never asks `PlayerCharacter` to write a file: the player and resource systems expose plain dictionaries, and `world_sandbox.gd` orchestrates the save request.
@@ -75,4 +83,4 @@ Accepted coordinates, resource codes and visual variants are packed into `ChunkD
 
 World metadata, player attributes and generated-world differences are separate documents. Collected resource keys are grouped by mathematical chunk coordinate. Only groups with at least one permanent change are written, so visiting or unloading an unmodified chunk cannot create a save file. See `docs/save-format.md` for the normative schema.
 
-Save format 3 stores a normalized inventory snapshot containing schema, slot/hotbar sizes, selected hotbar index and all 24 ordered slot objects. Format-2 count dictionaries are accepted only by the explicit migration path, converted through `InventoryModel`, and committed as format 3 on the next save.
+Save format 4 stores inventory schema 2, including per-instance durability, plus a crafting-state snapshot containing sorted discovered item IDs. Format-2 count dictionaries and format-3 inventory-schema-1 documents are accepted only by explicit migration paths and are committed as format 4 on the next save. Generation stays at format 4 because crafting does not alter deterministic base-world bytes.

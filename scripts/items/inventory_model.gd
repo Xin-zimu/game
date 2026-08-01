@@ -1,7 +1,7 @@
 class_name InventoryModel
 extends RefCounted
 
-const SCHEMA_VERSION := 1
+const SCHEMA_VERSION := 2
 
 var last_error := ""
 var _catalog: ItemCatalog
@@ -22,6 +22,10 @@ func slot_count() -> int:
 
 func hotbar_slot_count() -> int:
 	return _catalog.hotbar_slot_count()
+
+
+func catalog() -> ItemCatalog:
+	return _catalog
 
 
 func slot(index: int) -> Dictionary:
@@ -48,7 +52,7 @@ func select_hotbar(index: int) -> bool:
 	return true
 
 
-func add_item(item_id: StringName, quantity: int) -> Dictionary:
+func add_item(item_id: StringName, quantity: int, durability := -1) -> Dictionary:
 	if quantity <= 0 or not _catalog.has_item(item_id):
 		last_error = "无效物品或数量：%s ×%d" % [item_id, quantity]
 		return {"accepted": 0, "remainder": maxi(quantity, 0), "full": false}
@@ -74,7 +78,10 @@ func add_item(item_id: StringName, quantity: int) -> Dictionary:
 		if not _slots[index].is_empty():
 			continue
 		var moved := mini(maximum, remaining)
-		_slots[index] = {"item_id": String(item_id), "quantity": moved}
+		var next_slot := {"item_id": String(item_id), "quantity": moved}
+		if _catalog.is_durable(item_id):
+			next_slot["durability"] = clampi(durability if durability > 0 else _catalog.maximum_durability(item_id), 1, _catalog.maximum_durability(item_id))
+		_slots[index] = next_slot
 		remaining -= moved
 	last_error = "背包已满" if remaining > 0 else ""
 	return {"accepted": quantity - remaining, "remainder": remaining, "full": remaining > 0}
@@ -151,13 +158,27 @@ func discard(index: int, quantity := -1) -> Dictionary:
 	source["quantity"] = available - removed
 	_slots[index] = source if int(source["quantity"]) > 0 else {}
 	last_error = ""
-	return {"item_id": String(source["item_id"]), "quantity": removed}
+	var result := {"item_id": String(source["item_id"]), "quantity": removed}
+	if source.has("durability"):
+		result["durability"] = int(source["durability"])
+	return result
 
 
 func sort_inventory() -> void:
-	var totals := count_snapshot()
+	var totals := {}
+	var durable_slots: Dictionary = {}
+	for current in _slots:
+		if current.is_empty():
+			continue
+		var current_id := String(current["item_id"])
+		if _catalog.is_durable(StringName(current_id)):
+			if not durable_slots.has(current_id):
+				durable_slots[current_id] = []
+			(durable_slots[current_id] as Array).append(current.duplicate(true))
+		else:
+			totals[current_id] = int(totals.get(current_id, 0)) + int(current["quantity"])
 	var item_ids: Array[String] = []
-	for key in totals.keys():
+	for key in count_snapshot().keys():
 		item_ids.append(String(key))
 	item_ids.sort_custom(func(a: String, b: String) -> bool:
 		return _catalog.sort_key(StringName(a)) < _catalog.sort_key(StringName(b))
@@ -166,6 +187,15 @@ func sort_inventory() -> void:
 		_slots[index] = {}
 	var cursor := 0
 	for item_id in item_ids:
+		if durable_slots.has(item_id):
+			var entries := durable_slots[item_id] as Array
+			entries.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+				return int(a.get("durability", 0)) > int(b.get("durability", 0))
+			)
+			for entry in entries:
+				_slots[cursor] = (entry as Dictionary).duplicate(true)
+				cursor += 1
+			continue
 		var remaining := int(totals[item_id])
 		var maximum := _catalog.maximum_stack(StringName(item_id))
 		while remaining > 0:
@@ -174,6 +204,46 @@ func sort_inventory() -> void:
 			cursor += 1
 			remaining -= moved
 	last_error = ""
+
+
+func remove_item(item_id: StringName, quantity_value: int) -> bool:
+	if quantity_value <= 0 or quantity(item_id) < quantity_value:
+		last_error = "物品数量不足：%s" % item_id
+		return false
+	var remaining := quantity_value
+	for index in range(_slots.size() - 1, -1, -1):
+		if remaining <= 0:
+			break
+		var current := _slots[index]
+		if StringName(current.get("item_id", "")) != item_id:
+			continue
+		var removed := mini(remaining, int(current["quantity"]))
+		current = current.duplicate(true)
+		current["quantity"] = int(current["quantity"]) - removed
+		_slots[index] = current if int(current["quantity"]) > 0 else {}
+		remaining -= removed
+	last_error = ""
+	return true
+
+
+func damage_tool_at(index: int, amount := 1) -> Dictionary:
+	if not _is_valid_index(index) or _slots[index].is_empty() or amount <= 0:
+		last_error = "没有可以消耗耐久的工具"
+		return {"accepted": false, "broken": false}
+	var current := _slots[index].duplicate(true)
+	var item_id := StringName(current.get("item_id", ""))
+	if not _catalog.is_durable(item_id):
+		last_error = "当前物品没有耐久"
+		return {"accepted": false, "broken": false}
+	var remaining := int(current.get("durability", _catalog.maximum_durability(item_id))) - amount
+	if remaining <= 0:
+		_slots[index] = {}
+		last_error = ""
+		return {"accepted": true, "broken": true, "item_id": String(item_id), "remaining": 0}
+	current["durability"] = remaining
+	_slots[index] = current
+	last_error = ""
+	return {"accepted": true, "broken": false, "item_id": String(item_id), "remaining": remaining}
 
 
 func count_snapshot() -> Dictionary:
@@ -202,7 +272,8 @@ func snapshot() -> Dictionary:
 
 func restore_snapshot(value: Dictionary) -> bool:
 	last_error = ""
-	if int(value.get("schema_version", 0)) != SCHEMA_VERSION:
+	var source_schema := int(value.get("schema_version", 0))
+	if not [1, SCHEMA_VERSION].has(source_schema):
 		last_error = "背包格式版本无效"
 		return false
 	if int(value.get("slot_count", 0)) != slot_count() or int(value.get("hotbar_slot_count", 0)) != hotbar_slot_count():
@@ -227,7 +298,14 @@ func restore_snapshot(value: Dictionary) -> bool:
 		if not _catalog.has_item(item_id) or quantity_value < 1 or quantity_value > _catalog.maximum_stack(item_id):
 			last_error = "背包第 %d 格包含无效物品或堆叠数量" % (index + 1)
 			return false
-		restored.append({"item_id": String(item_id), "quantity": quantity_value})
+		var normalized := {"item_id": String(item_id), "quantity": quantity_value}
+		if _catalog.is_durable(item_id):
+			var durability_value := int(current.get("durability", 0))
+			if durability_value < 1 or durability_value > _catalog.maximum_durability(item_id):
+				last_error = "背包第 %d 格的工具耐久无效" % (index + 1)
+				return false
+			normalized["durability"] = durability_value
+		restored.append(normalized)
 	var selected := int(value.get("selected_hotbar_slot", 0))
 	if selected < 0 or selected >= hotbar_slot_count():
 		last_error = "快捷栏选中索引无效"

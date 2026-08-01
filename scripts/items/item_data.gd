@@ -8,6 +8,10 @@ extends Resource
 @export var category_sort_order := 0
 @export var maximum_stack := 1
 @export var color := Color.WHITE
+@export var tool_kind: StringName = &""
+@export var tool_power := 0
+@export var maximum_durability := 0
+@export var station_kind: StringName = &""
 
 
 func configure(definition: Dictionary, category: Dictionary) -> void:
@@ -18,6 +22,14 @@ func configure(definition: Dictionary, category: Dictionary) -> void:
 	category_sort_order = int(category.get("sort_order", 0))
 	maximum_stack = int(definition.get("max_stack", 1))
 	color = Color(String(definition.get("color", "ffffff")))
+	tool_kind = StringName(definition.get("tool_kind", ""))
+	tool_power = int(definition.get("tool_power", 0))
+	maximum_durability = int(definition.get("durability", 0))
+	station_kind = StringName(definition.get("station_kind", ""))
+
+
+func is_durable() -> bool:
+	return maximum_durability > 0
 
 
 func sort_key() -> String:

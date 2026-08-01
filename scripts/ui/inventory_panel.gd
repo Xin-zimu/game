@@ -57,8 +57,12 @@ class SlotView extends PanelContainer:
 		item_label.text = catalog.display_name(item_id)
 		item_label.add_theme_color_override("font_color", Color("e8efe9"))
 		quantity_label.text = "×%d" % int(value["quantity"])
+		if value.has("durability"):
+			quantity_label.text = "耐 %d" % int(value["durability"])
 		quantity_label.add_theme_color_override("font_color", Color("e2c178"))
 		tooltip_text = "%s · %s · %d/%d" % [catalog.display_name(item_id), catalog.category_name(item_id), int(value["quantity"]), catalog.maximum_stack(item_id)]
+		if value.has("durability"):
+			tooltip_text += " · 耐久 %d/%d" % [int(value["durability"]), catalog.maximum_durability(item_id)]
 
 	func _gui_input(event: InputEvent) -> void:
 		if event is InputEventMouseButton and event.pressed:
@@ -300,3 +304,5 @@ func _refresh_views() -> void:
 			int(selected_value["quantity"]),
 			_catalog.maximum_stack(item_id),
 		]
+		if selected_value.has("durability"):
+			_detail_label.text += " · 耐久 %d/%d" % [int(selected_value["durability"]), _catalog.maximum_durability(item_id)]

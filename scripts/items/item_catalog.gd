@@ -2,7 +2,11 @@ class_name ItemCatalog
 extends RefCounted
 
 const DEFAULT_CONFIG_PATH := "res://data/items.json"
-const REQUIRED_ITEM_IDS := ["wood", "stone", "fiber", "wildflower", "berry"]
+const REQUIRED_ITEM_IDS := [
+	"wood", "stone", "fiber", "branch", "wildflower", "berry", "cooked_berries",
+	"wood_axe", "wood_pickaxe", "wood_sword", "stone_axe", "stone_pickaxe", "stone_sword",
+	"workbench", "campfire", "torch",
+]
 
 var _config_path := DEFAULT_CONFIG_PATH
 var _valid := false
@@ -70,6 +74,30 @@ func item_color(item_id: StringName) -> Color:
 	return definition.color if definition != null else Color.WHITE
 
 
+func tool_kind(item_id: StringName) -> StringName:
+	var definition := item(item_id)
+	return definition.tool_kind if definition != null else &""
+
+
+func tool_power(item_id: StringName) -> int:
+	var definition := item(item_id)
+	return definition.tool_power if definition != null else 0
+
+
+func maximum_durability(item_id: StringName) -> int:
+	var definition := item(item_id)
+	return definition.maximum_durability if definition != null else 0
+
+
+func is_durable(item_id: StringName) -> bool:
+	return maximum_durability(item_id) > 0
+
+
+func station_kind(item_id: StringName) -> StringName:
+	var definition := item(item_id)
+	return definition.station_kind if definition != null else &""
+
+
 func sort_key(item_id: StringName) -> String:
 	var definition := item(item_id)
 	return definition.sort_key() if definition != null else "99999999|%s" % item_id
@@ -85,7 +113,7 @@ func _load_config() -> void:
 		_fail("Item configuration is not a JSON object: %s" % _config_path)
 		return
 	var root := parsed as Dictionary
-	if int(root.get("schema_version", 0)) != 1:
+	if int(root.get("schema_version", 0)) != 2:
 		_fail("Unsupported item schema version in %s" % _config_path)
 		return
 	_slot_count = int(root.get("inventory_slot_count", 0))
@@ -115,6 +143,12 @@ func _load_config() -> void:
 			return
 		if not _categories.has(category_id) or int(definition.get("max_stack", 0)) < 1:
 			_fail("Item '%s' has an invalid category or stack limit" % item_id)
+			return
+		var durability := int(definition.get("durability", 0))
+		var tool_kind_value := String(definition.get("tool_kind", ""))
+		var tool_power_value := int(definition.get("tool_power", 0))
+		if (durability > 0 or not tool_kind_value.is_empty() or tool_power_value > 0) and (durability < 1 or tool_kind_value.is_empty() or tool_power_value < 1 or int(definition.get("max_stack", 0)) != 1):
+			_fail("Durable item '%s' requires kind, power, durability and max stack 1" % item_id)
 			return
 		var next_item := ItemData.new()
 		next_item.configure(definition, _categories[category_id] as Dictionary)

@@ -2,6 +2,30 @@
 
 All notable changes are recorded here. Version numbers follow the staged project plan.
 
+## [0.9.0] - 2026-08-01
+
+### Added
+
+- Validated station and recipe catalog with ten recipes across hands, workbench and campfire.
+- Discovery-based recipe unlocks, station availability and a dedicated `C` crafting panel.
+- Transactional crafting that simulates deduction/output before committing the inventory snapshot.
+- Wooden and stone axes, pickaxes and swords, plus workbench, campfire, torch and cooked berries.
+- Per-instance tool durability, hotbar durability display, break removal and durability-preserving drops.
+- Tool power applied to resource durability so correct stone tools gather faster than wooden tools.
+- Persistent crafting discoveries and selected durable-tool state.
+
+### Changed
+
+- Save format advances from 3 to 4; inventory schema advances from 1 to 2; generation remains format 4.
+- Grass drops both fiber and branches, providing a hands-only path to the first wooden tools.
+- Item data advances to schema 2 with tool, weapon, station and utility categories and equipment fields.
+- Project font subset expanded to every V0.9 runtime/data/test glyph.
+
+### Fixed
+
+- Failed crafting, including insufficient materials or a full inventory, never consumes inputs.
+- Sorting, discarding and pooled ground transfer retain the exact durability of individual tools.
+
 ## [0.8.0] - 2026-08-01
 
 ### Added

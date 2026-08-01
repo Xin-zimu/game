@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "stations": [
+    {"id": "hands", "display_name": "徒手制作"},
+    {"id": "workbench", "display_name": "工作台", "required_item_id": "workbench"},
+    {"id": "campfire", "display_name": "火堆", "required_item_id": "campfire"}
+  ],
+  "recipes": [
+    {"id": "wood_axe", "display_name": "制作木斧", "station": "hands", "inputs": {"branch": 3, "fiber": 2}, "output": {"item_id": "wood_axe", "quantity": 1}, "unlock_items": ["branch", "fiber"]},
+    {"id": "wood_pickaxe", "display_name": "制作木镐", "station": "hands", "inputs": {"branch": 4, "fiber": 2}, "output": {"item_id": "wood_pickaxe", "quantity": 1}, "unlock_items": ["branch", "fiber"]},
+    {"id": "wood_sword", "display_name": "制作木剑", "station": "hands", "inputs": {"branch": 3, "fiber": 3}, "output": {"item_id": "wood_sword", "quantity": 1}, "unlock_items": ["branch", "fiber"]},
+    {"id": "workbench", "display_name": "制作工作台", "station": "hands", "inputs": {"wood": 8, "fiber": 4}, "output": {"item_id": "workbench", "quantity": 1}, "unlock_items": ["wood", "fiber"]},
+    {"id": "campfire", "display_name": "制作火堆", "station": "hands", "inputs": {"stone": 6, "wood": 3}, "output": {"item_id": "campfire", "quantity": 1}, "unlock_items": ["stone", "wood"]},
+    {"id": "torch", "display_name": "制作火把 ×2", "station": "hands", "inputs": {"wood": 1, "fiber": 1}, "output": {"item_id": "torch", "quantity": 2}, "unlock_items": ["wood", "fiber"]},
+    {"id": "stone_axe", "display_name": "制作石斧", "station": "workbench", "inputs": {"branch": 2, "stone": 4, "fiber": 2}, "output": {"item_id": "stone_axe", "quantity": 1}, "unlock_items": ["stone"]},
+    {"id": "stone_pickaxe", "display_name": "制作石镐", "station": "workbench", "inputs": {"branch": 3, "stone": 4, "fiber": 2}, "output": {"item_id": "stone_pickaxe", "quantity": 1}, "unlock_items": ["stone"]},
+    {"id": "stone_sword", "display_name": "制作石剑", "station": "workbench", "inputs": {"branch": 2, "stone": 5, "fiber": 2}, "output": {"item_id": "stone_sword", "quantity": 1}, "unlock_items": ["stone"]},
+    {"id": "cooked_berries", "display_name": "烤制熟浆果", "station": "campfire", "inputs": {"berry": 3}, "output": {"item_id": "cooked_berries", "quantity": 1}, "unlock_items": ["berry"]}
+  ]
+}

@@ -77,8 +77,14 @@ func create_world(world_name: String, seed_text: String) -> bool:
 		"maximum_stamina": 100.0,
 		"active_tool": "hands",
 		"inventory": InventoryModel.new().snapshot(),
+		"crafting_state": CraftingSystem.new(InventoryModel.new()).persistence_snapshot(),
 	}
-	_world_state_snapshot = {"collected_resources": [], "inventory": _player_snapshot["inventory"], "active_tool": "hands"}
+	_world_state_snapshot = {
+		"collected_resources": [],
+		"inventory": _player_snapshot["inventory"],
+		"crafting_state": _player_snapshot["crafting_state"],
+		"active_tool": "hands",
+	}
 	var world_result := _write_initial_json(root_path.path_join("world.json"), _metadata)
 	if not world_result:
 		return false
@@ -151,14 +157,21 @@ func load_world(world_id: String) -> bool:
 		if not migrated_inventory.restore_legacy_counts(player.get("inventory", {}) as Dictionary):
 			return _fail("玩家存档迁移失败：%s" % migrated_inventory.last_error)
 		player["inventory"] = migrated_inventory.snapshot()
-		player["save_version"] = GameVersion.SAVE_VERSION
-		metadata["save_version"] = GameVersion.SAVE_VERSION
-		metadata["game_version"] = GameVersion.VERSION
-		LogManager.info("SaveManager", "Migrated world %s from save format 2 to 3" % world_id)
 	else:
 		var normalized_inventory := InventoryModel.new()
 		normalized_inventory.restore_snapshot(player["inventory"] as Dictionary)
 		player["inventory"] = normalized_inventory.snapshot()
+	if loaded_save_version < GameVersion.SAVE_VERSION:
+		player["save_version"] = GameVersion.SAVE_VERSION
+		player["crafting_state"] = CraftingSystem.new(InventoryModel.new()).persistence_snapshot()
+		metadata["save_version"] = GameVersion.SAVE_VERSION
+		metadata["game_version"] = GameVersion.VERSION
+		LogManager.info("SaveManager", "Migrated world %s from save format %d to %d" % [world_id, loaded_save_version, GameVersion.SAVE_VERSION])
+	var normalized_player_inventory := InventoryModel.new()
+	normalized_player_inventory.restore_snapshot(player["inventory"] as Dictionary)
+	var normalized_crafting := CraftingSystem.new(normalized_player_inventory)
+	normalized_crafting.restore_snapshot(player.get("crafting_state", {}) as Dictionary)
+	player["crafting_state"] = normalized_crafting.persistence_snapshot()
 	var difference_result := _load_chunk_differences(root_path.path_join("chunks/surface"))
 	if not bool(difference_result["ok"]):
 		return _fail("区块差异损坏：%s" % difference_result["error"])
@@ -168,6 +181,7 @@ func load_world(world_id: String) -> bool:
 	_world_state_snapshot = {
 		"collected_resources": difference_result["collected_resources"],
 		"inventory": player.get("inventory", {}),
+		"crafting_state": player.get("crafting_state", {}),
 		"active_tool": String(player.get("active_tool", "hands")),
 	}
 	LogManager.info("SaveManager", "Loaded world %s (%s)" % [_metadata["world_name"], world_id])
@@ -256,6 +270,7 @@ func _start_save(request: Dictionary) -> void:
 	player["save_version"] = GameVersion.SAVE_VERSION
 	player["active_tool"] = String(world_state.get("active_tool", "hands"))
 	player["inventory"] = (world_state.get("inventory", {}) as Dictionary).duplicate(true)
+	player["crafting_state"] = (world_state.get("crafting_state", {}) as Dictionary).duplicate(true)
 	_metadata["last_played_at"] = Time.get_datetime_string_from_system(false, true)
 	_metadata["game_time_seconds"] = float(request["game_time_seconds"])
 	_metadata["game_version"] = GameVersion.VERSION
@@ -341,7 +356,7 @@ func _load_chunk_differences(chunks_path: String) -> Dictionary:
 		if not bool(read_result["ok"]):
 			return {"ok": false, "error": "%s：%s" % [filename, read_result["error"]], "collected_resources": []}
 		var difference := read_result["data"] as Dictionary
-		if not [2, GameVersion.SAVE_VERSION].has(int(difference.get("save_version", 0))) \
+		if not [2, 3, GameVersion.SAVE_VERSION].has(int(difference.get("save_version", 0))) \
 				or int(difference.get("generation_version", 0)) != GameVersion.GENERATION_VERSION \
 				or String(difference.get("layer", "")) != "surface":
 			return {"ok": false, "error": "%s 的版本或世界层无效" % filename, "collected_resources": []}
@@ -359,7 +374,7 @@ func _load_chunk_differences(chunks_path: String) -> Dictionary:
 
 
 func _validate_metadata(metadata: Dictionary) -> String:
-	if not [2, GameVersion.SAVE_VERSION].has(int(metadata.get("save_version", 0))):
+	if not [2, 3, GameVersion.SAVE_VERSION].has(int(metadata.get("save_version", 0))):
 		return "存档版本 %s 不受 V%s 支持" % [metadata.get("save_version", "缺失"), GameVersion.VERSION]
 	if int(metadata.get("generation_version", 0)) != GameVersion.GENERATION_VERSION:
 		return "生成版本 %s 与当前版本 %d 不兼容" % [metadata.get("generation_version", "缺失"), GameVersion.GENERATION_VERSION]
@@ -371,7 +386,7 @@ func _validate_metadata(metadata: Dictionary) -> String:
 
 func _validate_player(player: Dictionary) -> String:
 	var player_save_version := int(player.get("save_version", 0))
-	if not [2, GameVersion.SAVE_VERSION].has(player_save_version):
+	if not [2, 3, GameVersion.SAVE_VERSION].has(player_save_version):
 		return "玩家存档版本无效"
 	var position_value: Variant = player.get("position", [])
 	if not position_value is Array or (position_value as Array).size() != 2:
@@ -382,10 +397,20 @@ func _validate_player(player: Dictionary) -> String:
 	var inventory_value: Variant = player.get("inventory", {})
 	if not inventory_value is Dictionary:
 		return "背包数据必须是对象"
+	var validated_inventory: InventoryModel
+	if player_save_version >= 3:
+		if player_save_version == GameVersion.SAVE_VERSION and int((inventory_value as Dictionary).get("schema_version", 0)) != InventoryModel.SCHEMA_VERSION:
+			return "背包格式不是当前版本"
+		validated_inventory = InventoryModel.new()
+		if not validated_inventory.restore_snapshot(inventory_value as Dictionary):
+			return validated_inventory.last_error
 	if player_save_version == GameVersion.SAVE_VERSION:
-		var inventory := InventoryModel.new()
-		if not inventory.restore_snapshot(inventory_value as Dictionary):
-			return inventory.last_error
+		var crafting_value: Variant = player.get("crafting_state", {})
+		if not crafting_value is Dictionary:
+			return "制作解锁数据必须是对象"
+		var crafting := CraftingSystem.new(validated_inventory)
+		if not crafting.restore_snapshot(crafting_value as Dictionary):
+			return crafting.last_error
 	return ""
 
 
