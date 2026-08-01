@@ -15,7 +15,8 @@ var _queue: Array[Vector2i] = []
 var _jobs: Dictionary = {}
 var _task_ids: Dictionary = {}
 var _preload_targets: Dictionary = {}
-var _show_noise := false
+var _catalog := BiomeCatalog.new()
+var _view_mode := ChunkRenderer.ViewMode.TERRAIN
 var _show_boundaries := true
 var _completed_total := 0
 var _unloaded_total := 0
@@ -71,7 +72,7 @@ func _exit_tree() -> void:
 
 
 func toggle_noise_view() -> void:
-	_show_noise = not _show_noise
+	_view_mode = (_view_mode + 1) % (ChunkRenderer.ViewMode.ELEVATION + 1)
 	_update_renderer_debug_options()
 	_emit_metrics()
 
@@ -92,6 +93,19 @@ func metrics_snapshot() -> Dictionary:
 		elif distance > ChunkStreamPlanner.PRELOAD_RADIUS:
 			sleeping += 1
 	var current_data := _cache.get(_current_chunk) as ChunkData
+	var biome_name := "生成中"
+	var temperature := 0.0
+	var moisture := 0.0
+	var elevation := 0.0
+	var erosion := 0.0
+	if current_data != null:
+		var player_tile := WorldCoordinates.world_pixel_to_tile(_player.global_position)
+		var local := WorldCoordinates.tile_to_local(player_tile)
+		biome_name = _catalog.display_name_for_code(current_data.biome_at(local))
+		temperature = current_data.temperature_at(local)
+		moisture = current_data.moisture_at(local)
+		elevation = current_data.elevation_at(local)
+		erosion = current_data.erosion_at(local)
 	return {
 		"current_chunk": _current_chunk,
 		"current_checksum": current_data.checksum if current_data != null else "生成中",
@@ -105,8 +119,13 @@ func metrics_snapshot() -> Dictionary:
 		"unloaded_total": _unloaded_total,
 		"peak_cache": _peak_cache,
 		"peak_memory_mb": _peak_memory_mb,
-		"view_mode": "噪声" if _show_noise else "地形",
+		"view_mode": ChunkRenderer.view_mode_name(_view_mode),
 		"boundaries": _show_boundaries,
+		"biome_name": biome_name,
+		"temperature": temperature,
+		"moisture": moisture,
+		"elevation": elevation,
+		"erosion": erosion,
 	}
 
 
@@ -189,14 +208,14 @@ func _activate_cached_chunk(coordinate: Vector2i) -> void:
 	var renderer := ChunkRenderer.new()
 	add_child(renderer)
 	renderer.apply_chunk(_cache[coordinate] as ChunkData)
-	renderer.set_debug_options(_show_noise, _show_boundaries)
+	renderer.set_debug_options(_view_mode, _show_boundaries)
 	_renderers[coordinate] = renderer
 
 
 func _update_renderer_debug_options() -> void:
 	for renderer_value in _renderers.values():
 		var renderer := renderer_value as ChunkRenderer
-		renderer.set_debug_options(_show_noise, _show_boundaries)
+		renderer.set_debug_options(_view_mode, _show_boundaries)
 
 
 func _emit_metrics() -> void:

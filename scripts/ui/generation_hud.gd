@@ -9,6 +9,11 @@ var _seed_value := 0
 var _chunk := Vector2i.ZERO
 var _checksum := ""
 var _mode := "地形"
+var _biome_name := "生成中"
+var _temperature := 0.0
+var _moisture := 0.0
+var _elevation := 0.0
+var _erosion := 0.0
 
 
 func _ready() -> void:
@@ -36,6 +41,11 @@ func update_streaming(metrics: Dictionary) -> void:
 	_chunk = metrics.get("current_chunk", _chunk)
 	_checksum = metrics.get("current_checksum", _checksum)
 	_mode = metrics.get("view_mode", _mode)
+	_biome_name = metrics.get("biome_name", _biome_name)
+	_temperature = metrics.get("temperature", _temperature)
+	_moisture = metrics.get("moisture", _moisture)
+	_elevation = metrics.get("elevation", _elevation)
+	_erosion = metrics.get("erosion", _erosion)
 	if _stream_label != null:
 		_stream_label.text = "活动 %d  预载 %d  休眠 %d  缓存 %d/峰值%d  队列 %d  线程 %d" % [
 			metrics.get("active", 0),
@@ -51,8 +61,9 @@ func update_streaming(metrics: Dictionary) -> void:
 
 func _build_panel() -> void:
 	var panel := PanelContainer.new()
+	panel.name = "GenerationPanel"
 	panel.position = Vector2(344, 24)
-	panel.custom_minimum_size = Vector2(592, 111)
+	panel.custom_minimum_size = Vector2(592, 132)
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color("08171ee8")
 	style.border_color = Color("477c91")
@@ -71,10 +82,12 @@ func _build_panel() -> void:
 	_seed_label.add_theme_color_override("font_color", Color("d9eee2"))
 	column.add_child(_seed_label)
 	_world_label = Label.new()
+	_world_label.name = "WorldLabel"
 	_world_label.add_theme_font_size_override("font_size", 14)
 	_world_label.add_theme_color_override("font_color", Color("8fb6c5"))
 	column.add_child(_world_label)
 	_stream_label = Label.new()
+	_stream_label.name = "StreamLabel"
 	_stream_label.add_theme_font_size_override("font_size", 13)
 	_stream_label.add_theme_color_override("font_color", Color("e1c978"))
 	_stream_label.text = "活动 0  预载 0  休眠 0  缓存 0  队列 0  线程 0"
@@ -85,4 +98,14 @@ func _refresh() -> void:
 	if _seed_label == null or _world_label == null:
 		return
 	_seed_label.text = "种子  %s  →  %d" % [_seed_text, _seed_value]
-	_world_label.text = "当前区块  (%d, %d)   校验  %s   视图  %s" % [_chunk.x, _chunk.y, _checksum, _mode]
+	_world_label.text = "区块 (%d, %d)  校验 %s  视图 %s\n群系 %s  温度 %.2f  湿度 %.2f  海拔 %.2f  侵蚀 %.2f" % [
+		_chunk.x,
+		_chunk.y,
+		_checksum,
+		_mode,
+		_biome_name,
+		_temperature,
+		_moisture,
+		_elevation,
+		_erosion,
+	]

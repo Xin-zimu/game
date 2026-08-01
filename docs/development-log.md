@@ -1,5 +1,29 @@
 # Development Log
 
+## V0.5.0 - Layered terrain and ecological biomes
+
+- Added independent continentalness, elevation, erosion, temperature, moisture and detail fields.
+- Added a validated external biome catalog with nine stable IDs and configurable colors, thresholds, priorities and transition bands.
+- Added six land biomes plus coast, ocean and deep ocean to every streamed chunk.
+- Expanded `ChunkData` with five new field maps and a biome map; advanced generation format to 3.
+- Added terrain, biome, climate and elevation renderer modes and live current-cell diagnostics.
+- Added a deterministic headless biome-map renderer for release evidence.
+- Expanded the suite from 58 to 99 passing tests, including broad biome coverage, continuity, seams and HUD containment.
+
+### Iteration findings
+
+- `PackedStringArray([...])` is not a valid GDScript constant expression; the stable required-ID list now uses an array literal.
+- The original V0.3 showcase coordinate no longer contains all four base terrain categories after the multi-field generation upgrade, so the obsolete single-chunk assertion was replaced by broad coverage and continuity gates.
+- The bundled font lacked the new Chinese biome and climate glyphs; the subset was rebuilt from all runtime source strings and reimported before release.
+- A real X11 window cannot be opened in the current sandbox because local display sockets are blocked. The new feature was visually verified through a headless, exact-data biome map; HUD layout is covered by containment tests and both scenes pass runtime smoke tests.
+
+### Decisions
+
+- Biome configuration is shipped as JSON and explicitly included in exports.
+- Transition bands route threshold edges through configured neighbor biomes before global-neighbour cleanup.
+- The release map uses the same `TerrainGenerator.biome_at` path as streamed chunks, not a separate visualization approximation.
+- Resource nodes, collection and persistent modifications remain V0.6.0 and V0.7.0 work.
+
 ## V0.4.0 - Infinite chunk streaming
 
 - Added active, preload and retention radii of 2, 3 and 4 chunks.

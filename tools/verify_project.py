@@ -26,7 +26,9 @@ REQUIRED_PATHS = (
     "scripts/player/player_character.gd",
     "scripts/player/player_motor.gd",
     "scripts/generation/world_seed.gd",
+    "scripts/generation/biome_catalog.gd",
     "scripts/generation/terrain_generator.gd",
+    "data/biomes.json",
     "scripts/world/world_coordinates.gd",
     "scripts/world/chunk_data.gd",
     "scripts/world/chunk_renderer.gd",
@@ -38,6 +40,7 @@ REQUIRED_PATHS = (
     "tests/run_all.gd",
     "tests/test_runner.tscn",
     "tools/build_release.sh",
+    "tools/render_biome_map.gd",
 )
 
 
@@ -53,11 +56,11 @@ def main() -> int:
             failures.append(f"autoload not registered: {autoload}")
 
     version_text = (ROOT / "scripts/core/game_version.gd").read_text(encoding="utf-8")
-    if 'const VERSION := "0.4.0"' not in version_text:
-        failures.append("game version is not 0.4.0")
+    if 'const VERSION := "0.5.0"' not in version_text:
+        failures.append("game version is not 0.5.0")
 
-    if "const GENERATION_VERSION := 2" not in version_text:
-        failures.append("generation version is not 2")
+    if "const GENERATION_VERSION := 3" not in version_text:
+        failures.append("generation version is not 3")
 
     if failures:
         print("Structural verification failed:")

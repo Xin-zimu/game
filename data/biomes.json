@@ -1,0 +1,132 @@
+{
+  "schema_version": 1,
+  "terrain_thresholds": {
+    "deep_water": 0.275,
+    "shallow_water": 0.350,
+    "coast": 0.420
+  },
+  "cleanup": {
+    "terrain_majority": 6,
+    "biome_majority": 5,
+    "island_land_neighbors_max": 1,
+    "inlet_land_neighbors_min": 7
+  },
+  "surface_defaults": {
+    "deep_water": "deep_ocean",
+    "shallow_water": "ocean",
+    "coast": "coast"
+  },
+  "biomes": [
+    {
+      "id": "deep_ocean",
+      "code": 0,
+      "display_name": "深海",
+      "surface": "deep_water",
+      "color": "173b59",
+      "debug_color": "124a70",
+      "priority": 0
+    },
+    {
+      "id": "ocean",
+      "code": 1,
+      "display_name": "海洋",
+      "surface": "shallow_water",
+      "color": "2b7088",
+      "debug_color": "2f8fad",
+      "priority": 0
+    },
+    {
+      "id": "coast",
+      "code": 2,
+      "display_name": "海岸",
+      "surface": "coast",
+      "color": "c8ac6b",
+      "debug_color": "ead18b",
+      "priority": 0
+    },
+    {
+      "id": "plains",
+      "code": 3,
+      "display_name": "平原",
+      "surface": "land",
+      "color": "659653",
+      "debug_color": "7dbd63",
+      "priority": 0,
+      "conditions": {}
+    },
+    {
+      "id": "forest",
+      "code": 4,
+      "display_name": "森林",
+      "surface": "land",
+      "color": "356b43",
+      "debug_color": "3f8a50",
+      "priority": 40,
+      "transition_to": "plains",
+      "transition_band": 0.055,
+      "conditions": {
+        "moisture_min": 0.515
+      }
+    },
+    {
+      "id": "desert",
+      "code": 5,
+      "display_name": "沙漠",
+      "surface": "land",
+      "color": "c89552",
+      "debug_color": "e2ad62",
+      "priority": 60,
+      "transition_to": "plains",
+      "transition_band": 0.055,
+      "conditions": {
+        "temperature_min": 0.550,
+        "moisture_max": 0.330
+      }
+    },
+    {
+      "id": "snowfield",
+      "code": 6,
+      "display_name": "雪原",
+      "surface": "land",
+      "color": "c7d7d8",
+      "debug_color": "e8f5f5",
+      "priority": 80,
+      "transition_to": "plains",
+      "transition_band": 0.050,
+      "conditions": {
+        "temperature_max": 0.305
+      }
+    },
+    {
+      "id": "swamp",
+      "code": 7,
+      "display_name": "沼泽",
+      "surface": "land",
+      "color": "516a3e",
+      "debug_color": "71814b",
+      "priority": 70,
+      "transition_to": "forest",
+      "transition_band": 0.050,
+      "conditions": {
+        "temperature_min": 0.365,
+        "moisture_min": 0.675,
+        "elevation_max": 0.610
+      }
+    },
+    {
+      "id": "mountain",
+      "code": 8,
+      "display_name": "山地",
+      "surface": "land",
+      "color": "69716d",
+      "debug_color": "8a9290",
+      "priority": 90,
+      "transition_to": "plains",
+      "transition_band": 0.045,
+      "conditions": {
+        "elevation_min": 0.690,
+        "erosion_max": 0.690
+      }
+    }
+  ]
+}

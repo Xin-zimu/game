@@ -14,12 +14,15 @@ func _ready() -> void:
 	_test_player_motor_frame_independence()
 	_test_world_seed_contract()
 	_test_world_coordinate_contract()
+	_test_biome_catalog_contract()
 	_test_deterministic_generation()
+	_test_biome_regions()
 	_test_stream_planner()
 	_test_chunk_seams()
 	_test_background_generation()
 	await _test_player_scene_contract()
 	await _test_chunk_renderer()
+	await _test_generation_hud_layout()
 	await _test_main_menu_layout()
 	_finish()
 
@@ -32,9 +35,9 @@ func _test_project_resources() -> void:
 
 
 func _test_version_contract() -> void:
-	_assert_equal(GameVersion.VERSION, "0.4.0", "version constant")
+	_assert_equal(GameVersion.VERSION, "0.5.0", "version constant")
 	_assert_true(GameVersion.SAVE_VERSION >= 1, "save version initialized")
-	_assert_equal(GameVersion.GENERATION_VERSION, 2, "generation version incremented")
+	_assert_equal(GameVersion.GENERATION_VERSION, 3, "generation version incremented")
 
 
 func _test_event_bus_contract() -> void:
@@ -85,6 +88,21 @@ func _test_world_coordinate_contract() -> void:
 	_assert_equal(WorldCoordinates.chunk_key(&"surface", Vector2i(-2, 3)), "surface_-2_3", "chunk key preserves layer and signs")
 
 
+func _test_biome_catalog_contract() -> void:
+	var catalog := BiomeCatalog.new()
+	_assert_true(catalog.is_valid(), "external biome configuration loads and validates")
+	_assert_equal(catalog.biome_count(), 9, "catalog contains six land biomes plus coast and two ocean depths")
+	for biome_id in BiomeCatalog.REQUIRED_IDS:
+		_assert_true(catalog.has_biome(biome_id), "catalog contains stable biome ID %s" % biome_id)
+	_assert_true(catalog.threshold("deep_water") < catalog.threshold("shallow_water") and catalog.threshold("shallow_water") < catalog.threshold("coast"), "data-driven terrain thresholds are ordered")
+	_assert_equal(catalog.classify_land(0.12, 0.50, 0.52, 0.50), catalog.code_for_id(&"snowfield"), "temperature rule selects snowfield")
+	_assert_equal(catalog.classify_land(0.80, 0.12, 0.52, 0.50), catalog.code_for_id(&"desert"), "hot dry rule selects desert")
+	_assert_equal(catalog.classify_land(0.62, 0.82, 0.52, 0.50), catalog.code_for_id(&"swamp"), "warm wet lowland rule selects swamp")
+	_assert_equal(catalog.classify_land(0.52, 0.78, 0.64, 0.72), catalog.code_for_id(&"forest"), "wet rule selects forest outside swamp")
+	_assert_equal(catalog.classify_land(0.52, 0.42, 0.82, 0.40), catalog.code_for_id(&"mountain"), "high low-erosion rule selects mountain")
+	_assert_equal(catalog.classify_land(0.70, 0.30, 0.52, 0.50), catalog.code_for_id(&"plains"), "transition band routes a biome edge through plains")
+
+
 func _test_deterministic_generation() -> void:
 	var seed := WorldSeed.from_text("无尽边境")
 	var first_generator := TerrainGenerator.new(seed)
@@ -94,7 +112,13 @@ func _test_deterministic_generation() -> void:
 	_assert_equal(first.checksum, repeated.checksum, "same seed and coordinate survive generator restart")
 	_assert_true(first.base_tiles == repeated.base_tiles, "deterministic tile bytes match exactly")
 	_assert_equal(first.base_tiles.size(), 1024, "chunk contains 32×32 base tiles")
+	_assert_equal(first.continental_map.size(), 1024, "chunk contains 32×32 continental samples")
 	_assert_equal(first.elevation_map.size(), 1024, "chunk contains 32×32 elevation samples")
+	_assert_equal(first.erosion_map.size(), 1024, "chunk contains 32×32 erosion samples")
+	_assert_equal(first.temperature_map.size(), 1024, "chunk contains 32×32 temperature samples")
+	_assert_equal(first.moisture_map.size(), 1024, "chunk contains 32×32 moisture samples")
+	_assert_equal(first.biome_map.size(), 1024, "chunk contains 32×32 biome samples")
+	_assert_equal(first.checksum, "47c1e52c4fe80f9c", "generation v3 checksum fixture remains stable")
 	var other_seed := TerrainGenerator.new(WorldSeed.from_text("另一片边境")).generate_chunk(showcase_chunk)
 	_assert_true(first.checksum != other_seed.checksum, "different seeds produce different chunks")
 	var chunk_a := Vector2i(-3, 2)
@@ -112,7 +136,7 @@ func _test_deterministic_generation() -> void:
 	for count in counts:
 		if count > 0:
 			represented_types += 1
-	_assert_equal(represented_types, 4, "showcase chunk contains deep water, shallow water, beach and land")
+	_assert_true(represented_types >= 2, "showcase chunk contains a visible terrain transition")
 	var isolated_tiles := 0
 	for y in range(1, WorldCoordinates.CHUNK_SIZE - 1):
 		for x in range(1, WorldCoordinates.CHUNK_SIZE - 1):
@@ -128,6 +152,44 @@ func _test_deterministic_generation() -> void:
 			if matching_neighbors == 0:
 				isolated_tiles += 1
 	_assert_equal(isolated_tiles, 0, "coast cleanup removes isolated single-tile noise")
+
+
+func _test_biome_regions() -> void:
+	var catalog := BiomeCatalog.new()
+	var generator := TerrainGenerator.new(WorldSeed.from_text("无尽边境"))
+	var broad_counts := PackedInt32Array()
+	broad_counts.resize(catalog.biome_count())
+	for y in range(-2048, 2049, 64):
+		for x in range(-2048, 2049, 64):
+			broad_counts[generator.biome_at(Vector2i(x, y))] += 1
+	for biome_code in catalog.biome_count():
+		_assert_true(broad_counts[biome_code] > 0, "broad deterministic scan contains %s" % catalog.display_name_for_code(biome_code))
+	var origin := Vector2i(-96, -144)
+	var side := 96
+	var cells := PackedByteArray()
+	cells.resize(side * side)
+	for y in side:
+		for x in side:
+			cells[y * side + x] = generator.biome_at(origin + Vector2i(x, y))
+	var matching_edges := 0
+	var total_edges := 0
+	var isolated_cells := 0
+	for y in side:
+		for x in side:
+			var biome_code := cells[y * side + x]
+			if x + 1 < side:
+				total_edges += 1
+				matching_edges += 1 if biome_code == cells[y * side + x + 1] else 0
+			if y + 1 < side:
+				total_edges += 1
+				matching_edges += 1 if biome_code == cells[(y + 1) * side + x] else 0
+			if x > 0 and y > 0 and x + 1 < side and y + 1 < side:
+				var matching_neighbors := 0
+				for offset in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]:
+					matching_neighbors += 1 if biome_code == cells[(y + offset.y) * side + x + offset.x] else 0
+				isolated_cells += 1 if matching_neighbors == 0 else 0
+	_assert_true(float(matching_edges) / float(total_edges) > 0.90, "biomes form large continuous regions instead of random fragments")
+	_assert_true(isolated_cells <= 4, "biome transition cleanup limits isolated single cells")
 
 
 func _test_stream_planner() -> void:
@@ -157,6 +219,7 @@ func _test_chunk_seams() -> void:
 	var right := generator.generate_chunk(right_coordinate)
 	var seam_coordinates_correct := true
 	var samples_match_global_field := true
+	var biome_samples_match_global_field := true
 	for y in WorldCoordinates.CHUNK_SIZE:
 		var left_world := WorldCoordinates.chunk_local_to_tile(left_coordinate, Vector2i(31, y))
 		var right_world := WorldCoordinates.chunk_local_to_tile(right_coordinate, Vector2i(0, y))
@@ -164,8 +227,10 @@ func _test_chunk_seams() -> void:
 		var left_expected := clampi(roundi(generator.elevation_at(left_world) * 255.0), 0, 255)
 		var right_expected := clampi(roundi(generator.elevation_at(right_world) * 255.0), 0, 255)
 		samples_match_global_field = samples_match_global_field and left.elevation_map[y * 32 + 31] == left_expected and right.elevation_map[y * 32] == right_expected
+		biome_samples_match_global_field = biome_samples_match_global_field and left.biome_at(Vector2i(31, y)) == generator.biome_at(left_world) and right.biome_at(Vector2i(0, y)) == generator.biome_at(right_world)
 	_assert_true(seam_coordinates_correct, "adjacent chunk border tiles are consecutive world coordinates")
 	_assert_true(samples_match_global_field, "both sides of a seam sample the same global noise field")
+	_assert_true(biome_samples_match_global_field, "both sides of a seam sample the same global biome field")
 	var original_checksum := left.checksum
 	generator.generate_chunk(Vector2i(120, -75))
 	_assert_equal(generator.generate_chunk(left_coordinate).checksum, original_checksum, "evicted region regenerates identically on return")
@@ -189,8 +254,12 @@ func _test_chunk_renderer() -> void:
 	_assert_equal(renderer.get_used_cells().size(), 1024, "TileMapLayer renders every chunk tile")
 	_assert_equal(renderer.get_used_rect(), Rect2i(0, 0, 32, 32), "chunk renderer uses bounded local TileMap coordinates")
 	_assert_equal(renderer.position, WorldCoordinates.tile_to_world_pixel(Vector2i(-32, -128)), "chunk renderer node carries the world offset")
-	renderer.set_debug_options(true, true)
-	_assert_equal(renderer.get_used_cells().size(), 1024, "noise debug view preserves cell coverage")
+	renderer.set_debug_options(ChunkRenderer.ViewMode.BIOME, true)
+	_assert_equal(renderer.get_used_cells().size(), 1024, "biome debug view preserves cell coverage")
+	renderer.set_debug_options(ChunkRenderer.ViewMode.CLIMATE, true)
+	_assert_equal(renderer.get_used_cells().size(), 1024, "climate debug view preserves cell coverage")
+	renderer.set_debug_options(ChunkRenderer.ViewMode.ELEVATION, true)
+	_assert_equal(renderer.get_used_cells().size(), 1024, "elevation debug view preserves cell coverage")
 	renderer.queue_free()
 
 
@@ -207,6 +276,36 @@ func _test_player_scene_contract() -> void:
 	player.heal(10.0)
 	_assert_equal(player.health, 85.0, "player healing clamps correctly")
 	player.queue_free()
+
+
+func _test_generation_hud_layout() -> void:
+	var hud := GenerationHud.new()
+	add_child(hud)
+	await get_tree().process_frame
+	hud.configure("无尽边境", WorldSeed.from_text("无尽边境"), Vector2i(-1, -4), "47c1e52c4fe80f9c")
+	hud.update_streaming({
+		"current_chunk": Vector2i(-1, -4),
+		"current_checksum": "47c1e52c4fe80f9c",
+		"view_mode": "群系",
+		"biome_name": "森林",
+		"temperature": 0.48,
+		"moisture": 0.73,
+		"elevation": 0.57,
+		"erosion": 0.41,
+		"active": 25,
+		"preload": 24,
+		"cache": 49,
+		"peak_cache": 49,
+	})
+	await get_tree().process_frame
+	var panel := hud.find_child("GenerationPanel", true, false) as Control
+	var world_label := hud.find_child("WorldLabel", true, false) as Label
+	var stream_label := hud.find_child("StreamLabel", true, false) as Label
+	_assert_true(panel != null and world_label != null and stream_label != null, "generation HUD diagnostic nodes exist")
+	if panel != null and world_label != null and stream_label != null:
+		_assert_true(panel.get_global_rect().encloses(world_label.get_global_rect()), "biome and climate diagnostics stay inside generation panel")
+		_assert_true(panel.get_global_rect().encloses(stream_label.get_global_rect()), "stream diagnostics stay inside generation panel")
+	hud.queue_free()
 
 
 func _test_main_menu_layout() -> void:

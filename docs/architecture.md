@@ -1,17 +1,17 @@
 # Architecture
 
-Infinite Frontier uses a layered, data-oriented Godot architecture. This document records the foundation through V0.4.0 and will evolve with every version.
+Infinite Frontier uses a layered, data-oriented Godot architecture. This document records the foundation through V0.5.0 and will evolve with every version.
 
 ## Runtime layers
 
-| Layer | Responsibility | Components through V0.4.0 |
+| Layer | Responsibility | Components through V0.5.0 |
 |---|---|---|
 | Core | Application lifecycle, settings, logging, events | `GameManager`, `SettingsManager`, `LogManager`, `EventBus` |
 | Presentation | Scenes, menus and debug UI | `main_menu.gd`, `world_sandbox.gd`, `GameplayHud`, `GenerationHud`, `DebugPanel` |
 | Gameplay | Player, interaction, combat and progression | `PlayerCharacter`, `PlayerMotor`, `PlayerVisual`, `PixelCamera` |
 | World | Coordinates, chunk data, persistence and streaming | `WorldCoordinates`, `ChunkData`, `ChunkStreamPlanner`, `ChunkGenerationJob`, `ChunkStreamManager`, `ChunkRenderer` |
-| Generation | Pure deterministic world data | `WorldSeed`, `TerrainGenerator` |
-| Data | Stable IDs and data-driven content | Introduced as systems require it |
+| Generation | Pure deterministic world data | `WorldSeed`, `BiomeCatalog`, `TerrainGenerator` |
+| Data | Stable IDs and data-driven content | `data/biomes.json` |
 
 ## Architectural rules
 
@@ -35,7 +35,13 @@ The V0.2 sandbox is intentionally finite. `SandboxTerrain` and static obstacle b
 
 ## Deterministic generation flow
 
-`WorldSeed` converts text with a documented SHA-256 fixture and derives independent system seeds. `WorldCoordinates` converts signed world tiles to chunk/local coordinates with floor division, including negative boundaries. `TerrainGenerator` reads only seeds and integer world coordinates and returns `ChunkData`; it never reads the player or scene tree. `SingleChunkRenderer` is the only component that translates those bytes into `TileMapLayer` cells.
+`WorldSeed` converts text with a documented SHA-256 fixture and derives independent system seeds. `WorldCoordinates` converts signed world tiles to chunk/local coordinates with floor division, including negative boundaries. `TerrainGenerator` reads only seeds, biome configuration and integer world coordinates and returns `ChunkData`; it never reads the player or scene tree. `ChunkRenderer` is the only component that translates those bytes into `TileMapLayer` cells.
+
+## Biome ownership
+
+`BiomeCatalog` validates the external JSON schema, unique stable IDs, contiguous byte codes, ordered water thresholds and land-biome rules. `TerrainGenerator` owns noise sampling and classification. `ChunkData` stores the resulting maps. `ChunkRenderer` owns palette presentation, while `GenerationHud` only displays values supplied by the stream manager. Editing biome thresholds, priorities, colors or transition widths therefore does not require changing generation code.
+
+The generation pipeline uses independent seed domains for continentalness, elevation, erosion, temperature, moisture and local detail. Altitude cools the temperature field and nearby oceans influence moisture. Hard-rule boundaries include configured transition bands, then a global 3×3 majority pass removes sparse outliers without depending on chunk generation order.
 
 ## Streaming ownership
 
