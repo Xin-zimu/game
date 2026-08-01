@@ -28,6 +28,10 @@ run_godot_check() {
     echo "Godot reported an error in $log_path" >&2
     return 1
   fi
+	if rg -q '=== [0-9]+ passed, [1-9][0-9]* failed ===' "$log_path"; then
+		echo "Automated suite reported a failed assertion in $log_path" >&2
+		return 1
+	fi
 }
 
 run_godot_check import --headless --path "$PROJECT_ROOT" --editor --quit

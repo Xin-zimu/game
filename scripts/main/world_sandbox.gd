@@ -14,7 +14,7 @@ func _ready() -> void:
 	GameManager.current_state = GameManager.State.PLAYING
 	GameManager.current_scene_path = GameManager.GAME_SCENE
 	_build_world()
-	LogManager.info("WorldSandbox", "V0.5.0 layered terrain and biome stream ready")
+	LogManager.info("WorldSandbox", "V0.6.0 deterministic resources and interaction stream ready")
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -24,6 +24,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		_stream_manager.toggle_noise_view()
 	elif event.is_action_pressed("toggle_chunk_borders"):
 		_stream_manager.toggle_chunk_boundaries()
+	elif event.is_action_pressed("interact"):
+		_stream_manager.interact_with_nearest_resource()
+	elif event.is_action_pressed("cycle_tool"):
+		_stream_manager.cycle_active_tool()
 
 
 func _build_world() -> void:
@@ -38,6 +42,7 @@ func _build_world() -> void:
 	canvas.layer = 20
 	add_child(canvas)
 	canvas.add_child(GameplayHud.new())
+	canvas.add_child(ResourceHud.new())
 	_generation_hud = GenerationHud.new()
 	canvas.add_child(_generation_hud)
 	_generation_hud.configure(SEED_TEXT, _world_seed, START_CHUNK, initial_chunk.checksum)

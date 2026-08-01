@@ -19,6 +19,10 @@ var erosion_map := PackedByteArray()
 var temperature_map := PackedByteArray()
 var moisture_map := PackedByteArray()
 var biome_map := PackedByteArray()
+var resource_codes := PackedByteArray()
+var resource_local_x := PackedByteArray()
+var resource_local_y := PackedByteArray()
+var resource_variants := PackedByteArray()
 var checksum := ""
 
 
@@ -75,6 +79,57 @@ func biome_counts(biome_count: int) -> PackedInt32Array:
 	return counts
 
 
+func resource_count() -> int:
+	return resource_codes.size()
+
+
+func add_resource(local: Vector2i, resource_code: int, variant: int) -> void:
+	if not _is_local_valid(local):
+		push_error("Cannot add resource outside 32×32 chunk bounds: %s" % local)
+		return
+	resource_codes.append(resource_code)
+	resource_local_x.append(local.x)
+	resource_local_y.append(local.y)
+	resource_variants.append(variant)
+
+
+func resource_local_at(index: int) -> Vector2i:
+	if index < 0 or index >= resource_count():
+		push_error("Resource index is outside chunk resource array: %d" % index)
+		return Vector2i.ZERO
+	return Vector2i(resource_local_x[index], resource_local_y[index])
+
+
+func resource_world_tile_at(index: int) -> Vector2i:
+	return WorldCoordinates.chunk_local_to_tile(chunk_position, resource_local_at(index))
+
+
+func resource_code_at(index: int) -> int:
+	if index < 0 or index >= resource_count():
+		push_error("Resource index is outside chunk resource array: %d" % index)
+		return 0
+	return int(resource_codes[index])
+
+
+func resource_variant_at(index: int) -> int:
+	if index < 0 or index >= resource_count():
+		push_error("Resource index is outside chunk resource array: %d" % index)
+		return 0
+	return int(resource_variants[index])
+
+
+func has_resource_at(local: Vector2i) -> bool:
+	for index in resource_count():
+		if resource_local_x[index] == local.x and resource_local_y[index] == local.y:
+			return true
+	return false
+
+
+func resource_key_at(index: int) -> String:
+	var world_tile := resource_world_tile_at(index)
+	return "%d:%d:%d" % [world_tile.x, world_tile.y, resource_code_at(index)]
+
+
 func finalize_checksum() -> void:
 	var context := HashingContext.new()
 	var error := context.start(HashingContext.HASH_SHA256)
@@ -96,6 +151,10 @@ func finalize_checksum() -> void:
 	context.update(temperature_map)
 	context.update(moisture_map)
 	context.update(biome_map)
+	context.update(resource_codes)
+	context.update(resource_local_x)
+	context.update(resource_local_y)
+	context.update(resource_variants)
 	checksum = context.finish().hex_encode().substr(0, 16)
 
 

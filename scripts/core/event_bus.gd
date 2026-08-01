@@ -11,6 +11,10 @@ signal debug_visibility_changed(visible: bool)
 signal player_health_changed(current: float, maximum: float)
 signal player_stamina_changed(current: float, maximum: float)
 signal player_state_changed(state_name: StringName)
+signal resource_prompt_changed(text: String)
+signal active_tool_changed(tool_id: StringName, display_name: String)
+signal inventory_changed(inventory: Dictionary)
+signal interaction_feedback(message: String, successful: bool)
 
 
 func request_scene(scene_path: String) -> void:

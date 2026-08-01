@@ -2,6 +2,32 @@
 
 All notable changes are recorded here. Version numbers follow the staged project plan.
 
+## [0.6.0] - 2026-08-01
+
+### Added
+
+- Data-driven resource catalog for trees, rocks, grass, flowers and berry bushes.
+- Deterministic global candidate-grid placement with biome rules and cross-chunk minimum spacing.
+- Packed resource coordinates, codes and variants in `ChunkData` and generation checksums.
+- Shared resource `TileMapLayer` atlas with physical collisions for solid resources.
+- Hands, axe and pickaxe selection, proximity prompts, durability and tool validation.
+- Hit-flash collection animation, deterministic item stacks and automatic proximity pickup.
+- Fixed 32-object drop pool with matching-item overflow merging.
+- Session difference state that prevents repeated drops or resource restoration after chunk reload.
+- Exact-data 6×6-chunk resource distribution renderer and generation/interaction/pool regression tests.
+
+### Changed
+
+- Generation format advanced from 3 to 4 because resource spawn bytes became part of chunks.
+- Project font subset expanded for V0.6 resource, tool, pickup and inventory labels.
+- Test runner now treats a non-zero assertion summary as a release failure even if Godot exits zero.
+- Export presets continue to include all external JSON catalogs.
+
+### Fixed
+
+- Register the runtime resource atlas with its `TileSet` before adding per-tile collision polygons.
+- Player spawn selection now excludes generated resource cells.
+
 ## [0.5.0] - 2026-08-01
 
 ### Added

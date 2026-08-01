@@ -16,6 +16,11 @@ var _jobs: Dictionary = {}
 var _task_ids: Dictionary = {}
 var _preload_targets: Dictionary = {}
 var _catalog := BiomeCatalog.new()
+var _resource_catalog := ResourceCatalog.new()
+var _harvest_state := ResourceHarvestState.new()
+var _tool_ids: Array[StringName] = []
+var _active_tool_index := 0
+var _drop_pool: WorldDropPool
 var _view_mode := ChunkRenderer.ViewMode.TERRAIN
 var _show_boundaries := true
 var _completed_total := 0
@@ -23,6 +28,7 @@ var _unloaded_total := 0
 var _peak_cache := 0
 var _peak_memory_mb := 0.0
 var _metrics_elapsed := 0.0
+var _prompt_elapsed := 0.0
 
 
 func configure(world_seed: int, player: PlayerCharacter, initial_chunk: ChunkData = null) -> void:
@@ -38,12 +44,18 @@ func _ready() -> void:
 		push_error("ChunkStreamManager requires a configured player before entering the scene tree.")
 		set_process(false)
 		return
+	_tool_ids = _resource_catalog.tool_ids()
+	_drop_pool = WorldDropPool.new()
+	_drop_pool.configure(_resource_catalog.drop_pool_capacity(), _resource_catalog)
+	add_child(_drop_pool)
 	_refresh_targets()
 	_emit_metrics()
+	_emit_tool_and_inventory()
 
 
 func _process(delta: float) -> void:
 	_collect_completed_jobs()
+	_collect_nearby_drops()
 	var next_chunk := WorldCoordinates.tile_to_chunk(WorldCoordinates.world_pixel_to_tile(_player.global_position))
 	var next_direction := _direction_from_velocity(_player.velocity)
 	var targets_changed := next_chunk != _current_chunk
@@ -59,6 +71,10 @@ func _process(delta: float) -> void:
 	if _metrics_elapsed >= 0.2:
 		_metrics_elapsed = 0.0
 		_emit_metrics()
+	_prompt_elapsed += delta
+	if _prompt_elapsed >= 0.10:
+		_prompt_elapsed = 0.0
+		_update_resource_prompt()
 
 
 func _exit_tree() -> void:
@@ -83,6 +99,94 @@ func toggle_chunk_boundaries() -> void:
 	_emit_metrics()
 
 
+func cycle_active_tool() -> void:
+	if _tool_ids.is_empty():
+		return
+	_active_tool_index = (_active_tool_index + 1) % _tool_ids.size()
+	var tool_id := active_tool_id()
+	EventBus.active_tool_changed.emit(tool_id, _resource_catalog.tool_display_name(tool_id))
+	EventBus.interaction_feedback.emit("已切换到%s" % _resource_catalog.tool_display_name(tool_id), true)
+	_update_resource_prompt()
+
+
+func active_tool_id() -> StringName:
+	return _tool_ids[_active_tool_index] if not _tool_ids.is_empty() else &"hands"
+
+
+func interact_with_nearest_resource() -> void:
+	var target := nearest_resource(_resource_catalog.interaction_radius_pixels())
+	if target.is_empty():
+		EventBus.interaction_feedback.emit("附近没有可以采集的资源", false)
+		return
+	var resource_code := int(target["resource_code"])
+	var resource_key := String(target["resource_key"])
+	var result := _harvest_state.hit(resource_key, resource_code, active_tool_id(), _resource_catalog)
+	if not bool(result["accepted"]):
+		if String(result.get("reason", "")) == "wrong_tool":
+			var required_tool := StringName(result["required_tool"])
+			EventBus.interaction_feedback.emit("需要%s才能采集%s" % [
+				_resource_catalog.tool_display_name(required_tool),
+				_resource_catalog.display_name_for_code(resource_code),
+			], false)
+		return
+	var renderer := _renderers.get(target["chunk_position"]) as ChunkRenderer
+	var destroyed := bool(result["destroyed"])
+	if renderer != null:
+		renderer.play_resource_hit(resource_key, destroyed)
+	if not destroyed:
+		EventBus.interaction_feedback.emit("采集中：%s  %d/%d" % [
+			_resource_catalog.display_name_for_code(resource_code),
+			int(result["remaining"]),
+			int(result["maximum"]),
+		], true)
+		return
+	var drop_position := target["world_position"] as Vector2
+	var drop_index := 0
+	for drop_value in result["drops"] as Array:
+		var drop := drop_value as Dictionary
+		var offset := Vector2((drop_index - 1) * 12, 5 + posmod(drop_index, 2) * 6)
+		if not _drop_pool.spawn_drop(drop["item_id"] as StringName, int(drop["quantity"]), drop_position + offset):
+			LogManager.warning("ResourceInteraction", "Drop pool full; unable to spawn %s" % drop["item_id"])
+		drop_index += 1
+	EventBus.interaction_feedback.emit("%s已采集，掉落物将自动拾取" % _resource_catalog.display_name_for_code(resource_code), true)
+	_update_resource_prompt()
+	_emit_metrics()
+
+
+func nearest_resource(radius_pixels: float) -> Dictionary:
+	if _player == null:
+		return {}
+	var best: Dictionary = {}
+	var best_distance_squared := radius_pixels * radius_pixels
+	for coordinate_value in _renderers.keys():
+		var coordinate := coordinate_value as Vector2i
+		var chunk := _cache.get(coordinate) as ChunkData
+		if chunk == null:
+			continue
+		for index in chunk.resource_count():
+			var resource_key := chunk.resource_key_at(index)
+			if _harvest_state.collected_resources.has(resource_key):
+				continue
+			var world_position := WorldCoordinates.tile_to_world_pixel(chunk.resource_world_tile_at(index), true)
+			var distance_squared := _player.global_position.distance_squared_to(world_position)
+			if distance_squared > best_distance_squared:
+				continue
+			best_distance_squared = distance_squared
+			best = {
+				"chunk_position": coordinate,
+				"resource_index": index,
+				"resource_key": resource_key,
+				"resource_code": chunk.resource_code_at(index),
+				"world_position": world_position,
+				"distance_squared": distance_squared,
+			}
+	return best
+
+
+func harvest_state() -> ResourceHarvestState:
+	return _harvest_state
+
+
 func metrics_snapshot() -> Dictionary:
 	var preload_ready := 0
 	var sleeping := 0
@@ -98,6 +202,9 @@ func metrics_snapshot() -> Dictionary:
 	var moisture := 0.0
 	var elevation := 0.0
 	var erosion := 0.0
+	var active_resources := 0
+	for renderer_value in _renderers.values():
+		active_resources += (renderer_value as ChunkRenderer).visible_resource_count()
 	if current_data != null:
 		var player_tile := WorldCoordinates.world_pixel_to_tile(_player.global_position)
 		var local := WorldCoordinates.tile_to_local(player_tile)
@@ -126,6 +233,11 @@ func metrics_snapshot() -> Dictionary:
 		"moisture": moisture,
 		"elevation": elevation,
 		"erosion": erosion,
+		"active_resources": active_resources,
+		"collected_resources": _harvest_state.collected_resources.size(),
+		"active_drops": _drop_pool.active_count() if _drop_pool != null else 0,
+		"drop_pool_capacity": _resource_catalog.drop_pool_capacity(),
+		"active_tool": active_tool_id(),
 	}
 
 
@@ -207,6 +319,7 @@ func _activate_cached_chunk(coordinate: Vector2i) -> void:
 		return
 	var renderer := ChunkRenderer.new()
 	add_child(renderer)
+	renderer.set_collected_resources(_harvest_state.collected_resources)
 	renderer.apply_chunk(_cache[coordinate] as ChunkData)
 	renderer.set_debug_options(_view_mode, _show_boundaries)
 	_renderers[coordinate] = renderer
@@ -221,6 +334,48 @@ func _update_renderer_debug_options() -> void:
 func _emit_metrics() -> void:
 	_peak_memory_mb = maxf(_peak_memory_mb, Performance.get_monitor(Performance.MEMORY_STATIC) / 1048576.0)
 	metrics_changed.emit(metrics_snapshot())
+
+
+func _collect_nearby_drops() -> void:
+	if _drop_pool == null or _player == null:
+		return
+	var pickups := _drop_pool.collect_near(_player.global_position, _resource_catalog.pickup_radius_pixels())
+	if pickups.is_empty():
+		return
+	var messages: Array[String] = []
+	for value in pickups:
+		var pickup := value as Dictionary
+		var item_id := pickup["item_id"] as StringName
+		var quantity := int(pickup["quantity"])
+		_harvest_state.collect_item(item_id, quantity)
+		messages.append("%s ×%d" % [_resource_catalog.item_display_name(item_id), quantity])
+	EventBus.inventory_changed.emit(_harvest_state.inventory_snapshot())
+	EventBus.interaction_feedback.emit("拾取 " + "、".join(messages), true)
+
+
+func _update_resource_prompt() -> void:
+	var target := nearest_resource(_resource_catalog.interaction_radius_pixels())
+	if target.is_empty():
+		EventBus.resource_prompt_changed.emit("")
+		return
+	var resource_code := int(target["resource_code"])
+	var required_tool := _resource_catalog.required_tool_for_code(resource_code)
+	var name := _resource_catalog.display_name_for_code(resource_code)
+	if active_tool_id() != required_tool:
+		EventBus.resource_prompt_changed.emit("[E] %s · 需要%s（当前%s）" % [
+			name,
+			_resource_catalog.tool_display_name(required_tool),
+			_resource_catalog.tool_display_name(active_tool_id()),
+		])
+	else:
+		var remaining := _harvest_state.remaining_durability(String(target["resource_key"]), resource_code, _resource_catalog)
+		EventBus.resource_prompt_changed.emit("[E] 采集%s · 耐久 %d" % [name, remaining])
+
+
+func _emit_tool_and_inventory() -> void:
+	var tool_id := active_tool_id()
+	EventBus.active_tool_changed.emit(tool_id, _resource_catalog.tool_display_name(tool_id))
+	EventBus.inventory_changed.emit(_harvest_state.inventory_snapshot())
 
 
 func _coordinate_set(coordinates: Array[Vector2i]) -> Dictionary:

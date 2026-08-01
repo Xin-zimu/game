@@ -3,6 +3,7 @@ extends RefCounted
 
 var _world_seed: int
 var _catalog: BiomeCatalog
+var _resource_catalog: ResourceCatalog
 var _continental_noise := FastNoiseLite.new()
 var _elevation_noise := FastNoiseLite.new()
 var _erosion_noise := FastNoiseLite.new()
@@ -11,9 +12,10 @@ var _moisture_noise := FastNoiseLite.new()
 var _detail_noise := FastNoiseLite.new()
 
 
-func _init(world_seed: int, biome_config_path := BiomeCatalog.DEFAULT_CONFIG_PATH) -> void:
+func _init(world_seed: int, biome_config_path := BiomeCatalog.DEFAULT_CONFIG_PATH, resource_config_path := ResourceCatalog.DEFAULT_CONFIG_PATH) -> void:
 	_world_seed = world_seed
 	_catalog = BiomeCatalog.new(biome_config_path)
+	_resource_catalog = ResourceCatalog.new(resource_config_path)
 	_configure_noise(_continental_noise, &"continentalness", 0.0045, 3)
 	_configure_noise(_elevation_noise, &"elevation", 0.0140, 4)
 	_configure_noise(_erosion_noise, &"erosion", 0.0075, 3)
@@ -54,6 +56,9 @@ func generate_chunk(chunk_position: Vector2i, world_layer: StringName = &"surfac
 			result.temperature_map[index] = _quantize(temperature)
 			result.moisture_map[index] = _quantize(moisture)
 			result.biome_map[index] = biome
+	var resource_generator := ResourceGenerator.new(_world_seed, _resource_catalog, _catalog)
+	for resource in resource_generator.generate_for_chunk(chunk_position, self):
+		result.add_resource(resource["local"] as Vector2i, int(resource["code"]), int(resource["variant"]))
 	result.finalize_checksum()
 	return result
 
@@ -101,6 +106,10 @@ func biome_at(world_tile: Vector2i) -> int:
 	)
 
 
+func terrain_at(world_tile: Vector2i) -> ChunkData.Terrain:
+	return _terrain_with_cleanup(world_tile, elevation_at(world_tile))
+
+
 func find_land_near(chunk: ChunkData, preferred_local := Vector2i(16, 16)) -> Vector2i:
 	for radius in range(0, WorldCoordinates.CHUNK_SIZE):
 		for y in range(preferred_local.y - radius, preferred_local.y + radius + 1):
@@ -108,7 +117,7 @@ func find_land_near(chunk: ChunkData, preferred_local := Vector2i(16, 16)) -> Ve
 				var local := Vector2i(x, y)
 				if local.x < 1 or local.y < 1 or local.x >= WorldCoordinates.CHUNK_SIZE - 1 or local.y >= WorldCoordinates.CHUNK_SIZE - 1:
 					continue
-				if chunk.tile_at(local) >= ChunkData.Terrain.BEACH:
+				if chunk.tile_at(local) >= ChunkData.Terrain.BEACH and not chunk.has_resource_at(local):
 					return WorldCoordinates.chunk_local_to_tile(chunk.chunk_position, local)
 	return WorldCoordinates.chunk_local_to_tile(chunk.chunk_position, preferred_local)
 

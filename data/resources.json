@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "candidate_cell_size": 2,
+  "max_resources_per_chunk": 128,
+  "drop_pool_capacity": 32,
+  "interaction_radius_pixels": 64,
+  "pickup_radius_pixels": 34,
+  "tools": [
+    {"id": "hands", "display_name": "徒手", "power": 1},
+    {"id": "axe", "display_name": "斧头", "power": 1},
+    {"id": "pickaxe", "display_name": "镐子", "power": 1}
+  ],
+  "items": [
+    {"id": "wood", "display_name": "木材", "color": "b97845"},
+    {"id": "stone", "display_name": "石料", "color": "9aa1a0"},
+    {"id": "fiber", "display_name": "纤维", "color": "79a85b"},
+    {"id": "wildflower", "display_name": "野花", "color": "e8a6c4"},
+    {"id": "berry", "display_name": "浆果", "color": "c94f69"}
+  ],
+  "resources": [
+    {
+      "id": "tree",
+      "code": 0,
+      "display_name": "树木",
+      "color": "356a3f",
+      "durability": 3,
+      "required_tool": "axe",
+      "minimum_distance_tiles": 3,
+      "solid": true,
+      "biome_weights": {"plains": 0.12, "forest": 0.43, "snowfield": 0.12, "swamp": 0.21},
+      "drops": [{"item_id": "wood", "minimum": 2, "maximum": 4}]
+    },
+    {
+      "id": "rock",
+      "code": 1,
+      "display_name": "石头",
+      "color": "7e8889",
+      "durability": 3,
+      "required_tool": "pickaxe",
+      "minimum_distance_tiles": 3,
+      "solid": true,
+      "biome_weights": {"coast": 0.16, "plains": 0.07, "forest": 0.04, "desert": 0.19, "snowfield": 0.09, "mountain": 0.39},
+      "drops": [{"item_id": "stone", "minimum": 2, "maximum": 4}]
+    },
+    {
+      "id": "grass",
+      "code": 2,
+      "display_name": "草丛",
+      "color": "70a84f",
+      "durability": 1,
+      "required_tool": "hands",
+      "minimum_distance_tiles": 2,
+      "solid": false,
+      "biome_weights": {"coast": 0.04, "plains": 0.31, "forest": 0.15, "snowfield": 0.05, "swamp": 0.17},
+      "drops": [{"item_id": "fiber", "minimum": 1, "maximum": 2}]
+    },
+    {
+      "id": "flower",
+      "code": 3,
+      "display_name": "花",
+      "color": "e69aba",
+      "durability": 1,
+      "required_tool": "hands",
+      "minimum_distance_tiles": 2,
+      "solid": false,
+      "biome_weights": {"plains": 0.14, "forest": 0.08, "snowfield": 0.04, "swamp": 0.06},
+      "drops": [{"item_id": "wildflower", "minimum": 1, "maximum": 2}]
+    },
+    {
+      "id": "berry_bush",
+      "code": 4,
+      "display_name": "浆果丛",
+      "color": "477a45",
+      "durability": 2,
+      "required_tool": "hands",
+      "minimum_distance_tiles": 3,
+      "solid": true,
+      "biome_weights": {"plains": 0.09, "forest": 0.17, "snowfield": 0.08, "swamp": 0.13},
+      "drops": [{"item_id": "berry", "minimum": 2, "maximum": 5}]
+    }
+  ]
+}
