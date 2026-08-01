@@ -45,7 +45,10 @@
       "minimum_distance_tiles": 2,
       "solid": false,
       "biome_weights": {"coast": 0.04, "plains": 0.31, "forest": 0.15, "snowfield": 0.05, "swamp": 0.17},
-      "drops": [{"item_id": "fiber", "minimum": 1, "maximum": 2}]
+      "drops": [
+        {"item_id": "fiber", "minimum": 1, "maximum": 2},
+        {"item_id": "branch", "minimum": 1, "maximum": 2}
+      ]
     },
     {
       "id": "flower",

@@ -97,6 +97,10 @@ inventory_sort={
 "deadzone": 0.25,
 "events": [Object(InputEventKey,"physical_keycode":82)]
 }
+toggle_crafting={
+"deadzone": 0.25,
+"events": [Object(InputEventKey,"physical_keycode":67)]
+}
 
 [layer_names]
 

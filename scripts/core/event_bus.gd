@@ -15,6 +15,7 @@ signal resource_prompt_changed(text: String)
 signal active_tool_changed(tool_id: StringName, display_name: String)
 signal inventory_changed(inventory: Dictionary)
 signal inventory_state_changed(inventory_state: Dictionary)
+signal crafting_state_changed(recipe_views: Array)
 signal interaction_feedback(message: String, successful: bool)
 signal save_status_changed(message: String, successful: bool)
 

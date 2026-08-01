@@ -8,13 +8,15 @@ class DropVisual extends Node2D:
 	var active := false
 	var base_position := Vector2.ZERO
 	var color := Color.WHITE
+	var metadata: Dictionary = {}
 
-	func activate(next_item_id: StringName, next_quantity: int, world_position: Vector2, next_color: Color) -> void:
+	func activate(next_item_id: StringName, next_quantity: int, world_position: Vector2, next_color: Color, next_metadata := {}) -> void:
 		item_id = next_item_id
 		quantity = next_quantity
 		base_position = world_position
 		position = world_position
 		color = next_color
+		metadata = (next_metadata as Dictionary).duplicate(true)
 		age = 0.0
 		active = true
 		visible = true
@@ -25,6 +27,7 @@ class DropVisual extends Node2D:
 		visible = false
 		item_id = &""
 		quantity = 0
+		metadata.clear()
 
 	func tick(delta: float) -> void:
 		if not active:
@@ -68,17 +71,19 @@ func _process(delta: float) -> void:
 		visual.tick(delta)
 
 
-func spawn_drop(item_id: StringName, quantity: int, world_position: Vector2) -> bool:
+func spawn_drop(item_id: StringName, quantity: int, world_position: Vector2, metadata := {}) -> bool:
 	if quantity <= 0:
 		return false
 	for visual in _pool:
 		if not visual.active:
-			visual.activate(item_id, quantity, world_position, _catalog.item_color(item_id))
+			visual.activate(item_id, quantity, world_position, _catalog.item_color(item_id), metadata)
 			return true
+	if _catalog.item_is_durable(item_id):
+		return false
 	var merge_target: DropVisual
 	var best_distance := INF
 	for visual in _pool:
-		if visual.item_id != item_id:
+		if visual.item_id != item_id or visual.metadata != metadata:
 			continue
 		var distance := visual.base_position.distance_squared_to(world_position)
 		if distance < best_distance:
@@ -92,7 +97,7 @@ func spawn_drop(item_id: StringName, quantity: int, world_position: Vector2) -> 
 
 
 func collect_near(world_position: Vector2, radius: float) -> Array[Dictionary]:
-	var transfer := transfer_near(world_position, radius, func(_item_id: StringName, quantity: int) -> int:
+	var transfer := transfer_near(world_position, radius, func(_item_id: StringName, quantity: int, _metadata: Dictionary) -> int:
 		return quantity
 	)
 	return transfer["transferred"] as Array[Dictionary]
@@ -107,16 +112,20 @@ func transfer_near(world_position: Vector2, radius: float, receiver: Callable) -
 			continue
 		if visual.base_position.distance_squared_to(world_position) > radius_squared:
 			continue
-		var accepted := clampi(int(receiver.call(visual.item_id, visual.quantity)), 0, visual.quantity)
+		var accepted := clampi(int(receiver.call(visual.item_id, visual.quantity, visual.metadata.duplicate(true))), 0, visual.quantity)
 		if accepted > 0:
-			transferred.append({"item_id": visual.item_id, "quantity": accepted})
+			var transferred_stack := {"item_id": visual.item_id, "quantity": accepted}
+			transferred_stack.merge(visual.metadata, true)
+			transferred.append(transferred_stack)
 			visual.quantity -= accepted
 			if visual.quantity <= 0:
 				visual.deactivate()
 			else:
 				visual.queue_redraw()
 		if visual.active and visual.quantity > 0:
-			blocked.append({"item_id": visual.item_id, "quantity": visual.quantity})
+			var blocked_stack := {"item_id": visual.item_id, "quantity": visual.quantity}
+			blocked_stack.merge(visual.metadata, true)
+			blocked.append(blocked_stack)
 	return {"transferred": transferred, "blocked": blocked}
 
 

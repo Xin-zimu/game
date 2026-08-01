@@ -10,6 +10,7 @@ var _player: PlayerCharacter
 var _stream_manager: ChunkStreamManager
 var _generation_hud: GenerationHud
 var _inventory_panel: InventoryPanel
+var _crafting_panel: CraftingPanel
 var _game_time_seconds := 0.0
 var _autosave_elapsed := 0.0
 var _exit_save_requested := false
@@ -24,7 +25,7 @@ func _ready() -> void:
 		_world_seed = SaveManager.current_seed()
 		_game_time_seconds = SaveManager.current_game_time_seconds()
 	_build_world()
-	LogManager.info("WorldSandbox", "V0.8.0 inventory-enabled world ready: %s" % (SaveManager.current_world_name() if SaveManager.has_current_world() else "temporary"))
+	LogManager.info("WorldSandbox", "V0.9.0 crafting-enabled world ready: %s" % (SaveManager.current_world_name() if SaveManager.has_current_world() else "temporary"))
 
 
 func _process(delta: float) -> void:
@@ -39,6 +40,9 @@ func _process(delta: float) -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("pause"):
+		if _crafting_panel != null and _crafting_panel.is_crafting_open():
+			_crafting_panel.set_crafting_open(false)
+			return
 		if _inventory_panel != null and _inventory_panel.is_inventory_open():
 			_inventory_panel.set_inventory_open(false)
 			return
@@ -56,7 +60,11 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("manual_save"):
 		_request_save(true)
 	elif event.is_action_pressed("toggle_inventory"):
+		_crafting_panel.set_crafting_open(false)
 		_inventory_panel.toggle_inventory()
+	elif event.is_action_pressed("toggle_crafting"):
+		_inventory_panel.set_inventory_open(false)
+		_crafting_panel.toggle_crafting()
 	elif event.is_action_pressed("inventory_sort") and _inventory_panel.is_inventory_open():
 		_stream_manager.sort_inventory()
 	elif event is InputEventKey and event.pressed and not event.echo:
@@ -112,6 +120,9 @@ func _build_world() -> void:
 	_inventory_panel = InventoryPanel.new()
 	canvas.add_child(_inventory_panel)
 	_inventory_panel.configure(_stream_manager)
+	_crafting_panel = CraftingPanel.new()
+	canvas.add_child(_crafting_panel)
+	_crafting_panel.configure(_stream_manager)
 	if "--noise-view" in OS.get_cmdline_user_args():
 		_stream_manager.toggle_noise_view()
 

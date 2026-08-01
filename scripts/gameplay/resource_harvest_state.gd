@@ -6,11 +6,11 @@ var _durability: Dictionary = {}
 var _inventory := InventoryModel.new()
 
 
-func hit(resource_key: String, resource_code: int, active_tool: StringName, catalog: ResourceCatalog) -> Dictionary:
+func hit(resource_key: String, resource_code: int, active_tool: StringName, catalog: ResourceCatalog, tool_power := 1) -> Dictionary:
 	if collected_resources.has(resource_key):
 		return {"accepted": false, "destroyed": false, "reason": "already_collected", "drops": []}
 	var required_tool := catalog.required_tool_for_code(resource_code)
-	if active_tool != required_tool or catalog.tool_power(active_tool) < 1:
+	if active_tool != required_tool or tool_power < 1:
 		return {
 			"accepted": false,
 			"destroyed": false,
@@ -19,7 +19,7 @@ func hit(resource_key: String, resource_code: int, active_tool: StringName, cata
 			"drops": [],
 		}
 	var maximum := catalog.durability_for_code(resource_code)
-	var remaining := int(_durability.get(resource_key, maximum)) - catalog.tool_power(active_tool)
+	var remaining := int(_durability.get(resource_key, maximum)) - tool_power
 	if remaining > 0:
 		_durability[resource_key] = remaining
 		return {"accepted": true, "destroyed": false, "remaining": remaining, "maximum": maximum, "drops": []}

@@ -17,9 +17,10 @@ var _task_ids: Dictionary = {}
 var _preload_targets: Dictionary = {}
 var _catalog := BiomeCatalog.new()
 var _resource_catalog := ResourceCatalog.new()
+var _item_catalog := ItemCatalog.new()
 var _harvest_state := ResourceHarvestState.new()
 var _tool_ids: Array[StringName] = []
-var _active_tool_index := 0
+var _crafting_system: CraftingSystem
 var _drop_pool: WorldDropPool
 var _pending_persistence: Dictionary = {}
 var _view_mode := ChunkRenderer.ViewMode.TERRAIN
@@ -46,6 +47,7 @@ func _ready() -> void:
 		set_process(false)
 		return
 	_tool_ids = _resource_catalog.tool_ids()
+	_crafting_system = CraftingSystem.new(_harvest_state.inventory_model())
 	_restore_pending_persistence()
 	_drop_pool = WorldDropPool.new()
 	_drop_pool.configure(_resource_catalog.drop_pool_capacity(), _resource_catalog)
@@ -102,17 +104,48 @@ func toggle_chunk_boundaries() -> void:
 
 
 func cycle_active_tool() -> void:
-	if _tool_ids.is_empty():
+	var inventory := _harvest_state.inventory_model()
+	var start := inventory.selected_hotbar_slot()
+	for offset in range(1, inventory.hotbar_slot_count() + 1):
+		var candidate := posmod(start + offset, inventory.hotbar_slot_count())
+		var value := inventory.slot(candidate)
+		if value.is_empty():
+			continue
+		var kind := _item_catalog.tool_kind(StringName(value["item_id"]))
+		if kind.is_empty():
+			continue
+		inventory.select_hotbar(candidate)
+		_emit_tool_and_inventory()
+		EventBus.interaction_feedback.emit("已切换到%s" % active_tool_display_name(), true)
+		_update_resource_prompt()
 		return
-	_active_tool_index = (_active_tool_index + 1) % _tool_ids.size()
-	var tool_id := active_tool_id()
-	EventBus.active_tool_changed.emit(tool_id, _resource_catalog.tool_display_name(tool_id))
-	EventBus.interaction_feedback.emit("已切换到%s" % _resource_catalog.tool_display_name(tool_id), true)
-	_update_resource_prompt()
+	EventBus.interaction_feedback.emit("快捷栏中没有可以切换的工具", false)
 
 
 func active_tool_id() -> StringName:
-	return _tool_ids[_active_tool_index] if not _tool_ids.is_empty() else &"hands"
+	var inventory := _harvest_state.inventory_model()
+	var value := inventory.slot(inventory.selected_hotbar_slot())
+	if value.is_empty():
+		return &"hands"
+	var kind := _item_catalog.tool_kind(StringName(value["item_id"]))
+	return kind if not kind.is_empty() else &"hands"
+
+
+func active_tool_power() -> int:
+	var inventory := _harvest_state.inventory_model()
+	var value := inventory.slot(inventory.selected_hotbar_slot())
+	if value.is_empty():
+		return 1
+	var power := _item_catalog.tool_power(StringName(value["item_id"]))
+	return power if power > 0 else 1
+
+
+func active_tool_display_name() -> String:
+	var inventory := _harvest_state.inventory_model()
+	var value := inventory.slot(inventory.selected_hotbar_slot())
+	if value.is_empty() or _item_catalog.tool_kind(StringName(value["item_id"])).is_empty():
+		return _resource_catalog.tool_display_name(&"hands")
+	return _item_catalog.display_name(StringName(value["item_id"]))
 
 
 func interact_with_nearest_resource() -> void:
@@ -122,7 +155,7 @@ func interact_with_nearest_resource() -> void:
 		return
 	var resource_code := int(target["resource_code"])
 	var resource_key := String(target["resource_key"])
-	var result := _harvest_state.hit(resource_key, resource_code, active_tool_id(), _resource_catalog)
+	var result := _harvest_state.hit(resource_key, resource_code, active_tool_id(), _resource_catalog, active_tool_power())
 	if not bool(result["accepted"]):
 		if String(result.get("reason", "")) == "wrong_tool":
 			var required_tool := StringName(result["required_tool"])
@@ -131,16 +164,20 @@ func interact_with_nearest_resource() -> void:
 				_resource_catalog.display_name_for_code(resource_code),
 			], false)
 		return
+	var broken_tool := _consume_active_tool_durability()
 	var renderer := _renderers.get(target["chunk_position"]) as ChunkRenderer
 	var destroyed := bool(result["destroyed"])
 	if renderer != null:
 		renderer.play_resource_hit(resource_key, destroyed)
 	if not destroyed:
-		EventBus.interaction_feedback.emit("采集中：%s  %d/%d" % [
+		var progress_message := "采集中：%s  %d/%d" % [
 			_resource_catalog.display_name_for_code(resource_code),
 			int(result["remaining"]),
 			int(result["maximum"]),
-		], true)
+		]
+		if not broken_tool.is_empty():
+			progress_message += " · %s已损坏" % broken_tool
+		EventBus.interaction_feedback.emit(progress_message, true)
 		return
 	var drop_position := target["world_position"] as Vector2
 	var drop_index := 0
@@ -150,7 +187,10 @@ func interact_with_nearest_resource() -> void:
 		if not _drop_pool.spawn_drop(drop["item_id"] as StringName, int(drop["quantity"]), drop_position + offset):
 			LogManager.warning("ResourceInteraction", "Drop pool full; unable to spawn %s" % drop["item_id"])
 		drop_index += 1
-	EventBus.interaction_feedback.emit("%s已采集，掉落物将自动拾取" % _resource_catalog.display_name_for_code(resource_code), true)
+	var destroyed_message := "%s已采集，掉落物将自动拾取" % _resource_catalog.display_name_for_code(resource_code)
+	if not broken_tool.is_empty():
+		destroyed_message += " · %s已损坏" % broken_tool
+	EventBus.interaction_feedback.emit(destroyed_message, true)
 	_update_resource_prompt()
 	_emit_metrics()
 
@@ -198,6 +238,7 @@ func restore_persistence(snapshot: Dictionary) -> void:
 func persistence_snapshot() -> Dictionary:
 	var snapshot := _harvest_state.persistence_snapshot()
 	snapshot["active_tool"] = String(active_tool_id())
+	snapshot["crafting_state"] = _crafting_system.persistence_snapshot() if _crafting_system != null else {}
 	return snapshot
 
 
@@ -230,8 +271,11 @@ func discard_inventory_slot(index: int, quantity := -1) -> bool:
 		return false
 	var item_id := StringName(removed["item_id"])
 	var amount := int(removed["quantity"])
-	if _drop_pool == null or not _drop_pool.spawn_drop(item_id, amount, _player.global_position + Vector2(18, 10)):
-		_harvest_state.collect_item(item_id, amount)
+	var metadata := {}
+	if removed.has("durability"):
+		metadata["durability"] = int(removed["durability"])
+	if _drop_pool == null or not _drop_pool.spawn_drop(item_id, amount, _player.global_position + Vector2(18, 10), metadata):
+		_harvest_state.inventory_model().add_item(item_id, amount, int(removed.get("durability", -1)))
 		EventBus.interaction_feedback.emit("地面掉落池已满，物品已退回背包", false)
 		_emit_inventory_state()
 		return false
@@ -249,8 +293,22 @@ func sort_inventory() -> void:
 func select_hotbar_slot(index: int) -> bool:
 	var changed := _harvest_state.select_hotbar_slot(index)
 	if changed:
-		_emit_inventory_state()
+		_emit_tool_and_inventory()
+		_update_resource_prompt()
 	return changed
+
+
+func crafting_views() -> Array[Dictionary]:
+	return _crafting_system.recipe_views() if _crafting_system != null else []
+
+
+func craft_recipe(recipe_id: StringName) -> Dictionary:
+	if _crafting_system == null:
+		return {"ok": false, "message": "制作系统尚未就绪"}
+	var result := _crafting_system.craft(recipe_id)
+	EventBus.interaction_feedback.emit(String(result["message"]), bool(result["ok"]))
+	_emit_tool_and_inventory()
+	return result
 
 
 func metrics_snapshot() -> Dictionary:
@@ -408,8 +466,8 @@ func _collect_nearby_drops() -> void:
 	var transfer := _drop_pool.transfer_near(
 		_player.global_position,
 		_resource_catalog.pickup_radius_pixels(),
-		func(item_id: StringName, quantity: int) -> int:
-			var result := _harvest_state.collect_item(item_id, quantity)
+		func(item_id: StringName, quantity: int, metadata: Dictionary) -> int:
+			var result := _harvest_state.inventory_model().add_item(item_id, quantity, int(metadata.get("durability", -1)))
 			return int(result["accepted"])
 	)
 	var pickups := transfer["transferred"] as Array
@@ -441,7 +499,7 @@ func _update_resource_prompt() -> void:
 		EventBus.resource_prompt_changed.emit("[E] %s · 需要%s（当前%s）" % [
 			name,
 			_resource_catalog.tool_display_name(required_tool),
-			_resource_catalog.tool_display_name(active_tool_id()),
+			active_tool_display_name(),
 		])
 	else:
 		var remaining := _harvest_state.remaining_durability(String(target["resource_key"]), resource_code, _resource_catalog)
@@ -450,13 +508,16 @@ func _update_resource_prompt() -> void:
 
 func _emit_tool_and_inventory() -> void:
 	var tool_id := active_tool_id()
-	EventBus.active_tool_changed.emit(tool_id, _resource_catalog.tool_display_name(tool_id))
+	EventBus.active_tool_changed.emit(tool_id, active_tool_display_name())
 	_emit_inventory_state()
 
 
 func _emit_inventory_state() -> void:
 	EventBus.inventory_changed.emit(_harvest_state.inventory_snapshot())
 	EventBus.inventory_state_changed.emit(_harvest_state.inventory_state_snapshot())
+	if _crafting_system != null:
+		_crafting_system.refresh_discoveries()
+		EventBus.crafting_state_changed.emit(_crafting_system.recipe_views())
 
 
 func _restore_pending_persistence() -> void:
@@ -466,10 +527,23 @@ func _restore_pending_persistence() -> void:
 		_pending_persistence.get("collected_resources", []) as Array,
 		_pending_persistence.get("inventory", {})
 	)
-	var requested_tool := StringName(_pending_persistence.get("active_tool", "hands"))
-	var requested_index := _tool_ids.find(requested_tool)
-	_active_tool_index = requested_index if requested_index >= 0 else 0
+	if _crafting_system != null and not _crafting_system.restore_snapshot(_pending_persistence.get("crafting_state", {}) as Dictionary):
+		push_error("Unable to restore crafting state: %s" % _crafting_system.last_error)
 	_pending_persistence.clear()
+
+
+func _consume_active_tool_durability() -> String:
+	var inventory := _harvest_state.inventory_model()
+	var index := inventory.selected_hotbar_slot()
+	var value := inventory.slot(index)
+	if value.is_empty():
+		return ""
+	var item_id := StringName(value["item_id"])
+	if not _item_catalog.is_durable(item_id):
+		return ""
+	var result := inventory.damage_tool_at(index, 1)
+	_emit_tool_and_inventory()
+	return _item_catalog.display_name(item_id) if bool(result.get("broken", false)) else ""
 
 
 func _coordinate_set(coordinates: Array[Vector2i]) -> Dictionary:

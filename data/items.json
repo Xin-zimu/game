@@ -1,16 +1,31 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "inventory_slot_count": 24,
   "hotbar_slot_count": 8,
   "categories": [
     {"id": "material", "display_name": "材料", "sort_order": 10},
-    {"id": "food", "display_name": "食物", "sort_order": 20}
+    {"id": "food", "display_name": "食物", "sort_order": 20},
+    {"id": "tool", "display_name": "工具", "sort_order": 30},
+    {"id": "weapon", "display_name": "武器", "sort_order": 40},
+    {"id": "station", "display_name": "制作设施", "sort_order": 50},
+    {"id": "utility", "display_name": "实用品", "sort_order": 60}
   ],
   "items": [
     {"id": "wood", "display_name": "木材", "category": "material", "max_stack": 50, "color": "b97845"},
     {"id": "stone", "display_name": "石料", "category": "material", "max_stack": 50, "color": "9aa1a0"},
     {"id": "fiber", "display_name": "纤维", "category": "material", "max_stack": 50, "color": "79a85b"},
+    {"id": "branch", "display_name": "树枝", "category": "material", "max_stack": 50, "color": "8f6038"},
     {"id": "wildflower", "display_name": "野花", "category": "material", "max_stack": 30, "color": "e8a6c4"},
-    {"id": "berry", "display_name": "浆果", "category": "food", "max_stack": 20, "color": "c94f69"}
+    {"id": "berry", "display_name": "浆果", "category": "food", "max_stack": 20, "color": "c94f69"},
+    {"id": "cooked_berries", "display_name": "熟浆果", "category": "food", "max_stack": 10, "color": "e0745f"},
+    {"id": "wood_axe", "display_name": "木斧", "category": "tool", "max_stack": 1, "color": "c58a52", "tool_kind": "axe", "tool_power": 1, "durability": 30},
+    {"id": "wood_pickaxe", "display_name": "木镐", "category": "tool", "max_stack": 1, "color": "b47b4a", "tool_kind": "pickaxe", "tool_power": 1, "durability": 30},
+    {"id": "wood_sword", "display_name": "木剑", "category": "weapon", "max_stack": 1, "color": "d09a64", "tool_kind": "sword", "tool_power": 1, "durability": 40},
+    {"id": "stone_axe", "display_name": "石斧", "category": "tool", "max_stack": 1, "color": "aeb2ab", "tool_kind": "axe", "tool_power": 2, "durability": 60},
+    {"id": "stone_pickaxe", "display_name": "石镐", "category": "tool", "max_stack": 1, "color": "9ca3a1", "tool_kind": "pickaxe", "tool_power": 2, "durability": 60},
+    {"id": "stone_sword", "display_name": "石剑", "category": "weapon", "max_stack": 1, "color": "bcc0b8", "tool_kind": "sword", "tool_power": 2, "durability": 80},
+    {"id": "workbench", "display_name": "工作台", "category": "station", "max_stack": 5, "color": "8d5a32", "station_kind": "workbench"},
+    {"id": "campfire", "display_name": "火堆", "category": "station", "max_stack": 5, "color": "dd6b38", "station_kind": "campfire"},
+    {"id": "torch", "display_name": "火把", "category": "utility", "max_stack": 20, "color": "f0b84d"}
   ]
 }

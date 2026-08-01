@@ -2,12 +2,14 @@
 
 ## Version
 
-- Game version: `0.8.0`
-- Save version: `3`
+- Game version: `0.9.0`
+- Save version: `4`
 - Generation version: `4`
+- Inventory schema: `2`
+- Crafting-state schema: `1`
 - Storage root: `user://saves`
 
-Save and generation formats are independent. Save version 3 adds ordered inventory slots and hotbar selection. Version 2 is accepted only by the documented migration path; any other save version or a mismatched generation version is rejected with a file-specific error.
+Save and generation formats are independent. Save version 4 adds individual tool durability and persistent crafting discoveries without changing deterministic world generation. Versions 2 and 3 are accepted only by the documented migration paths; any other save version or a mismatched generation version is rejected with a file-specific error.
 
 ## Directory layout
 
@@ -34,9 +36,9 @@ The directory ID is local and collision-resistant; the player-facing name remain
 
 ```json
 {
-  "save_version": 3,
+  "save_version": 4,
   "generation_version": 4,
-  "game_version": "0.8.0",
+  "game_version": "0.9.0",
   "world_id": "world_123456789",
   "world_name": "无尽边境",
   "seed_text": "无尽边境",
@@ -56,7 +58,7 @@ The 64-bit seed is stored together with its original text so the UI can reproduc
 
 ```json
 {
-  "save_version": 3,
+  "save_version": 4,
   "position": [-2048.5, 1024.25],
   "health": 73.0,
   "maximum_health": 100.0,
@@ -64,21 +66,28 @@ The 64-bit seed is stored together with its original text so the UI can reproduc
   "maximum_stamina": 100.0,
   "active_tool": "axe",
   "inventory": {
-    "schema_version": 1,
+    "schema_version": 2,
     "slot_count": 24,
     "hotbar_slot_count": 8,
     "selected_hotbar_slot": 0,
     "slots": [
+      {"item_id": "stone_axe", "quantity": 1, "durability": 23},
       {"item_id": "wood", "quantity": 7},
       {"item_id": "stone", "quantity": 3},
-      {}, {}, {}, {}, {}, {}, {}, {}, {}, {},
+      {}, {}, {}, {}, {}, {}, {}, {}, {},
       {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}
     ]
+  },
+  "crafting_state": {
+    "schema_version": 1,
+    "discovered_items": ["branch", "fiber", "stone", "wood"]
   }
 }
 ```
 
-The slot array always contains exactly 24 objects in player-defined order. Empty objects represent empty slots; occupied entries must reference a known stable item ID and contain `1..max_stack`. Slots 0–7 are the hotbar, and the selected index must be `0..7`. Loading reconstructs this object through `InventoryModel`, normalizing JSON numbers back to integers before gameplay sees the snapshot.
+The slot array always contains exactly 24 objects in player-defined order. Empty objects represent empty slots; occupied entries reference a known stable item ID and contain `1..max_stack`. Durable items have stack limit one and an integer `durability` in `1..maximum`. Slots 0–7 are the hotbar, and the selected index must be `0..7`.
+
+Crafting discoveries are sorted known item IDs. They persist even after the player consumes or discards the last copy of an item, while loading also discovers any items currently in the inventory. JSON numbers are validated and reconstructed through `InventoryModel` and `CraftingSystem` before gameplay receives a normalized snapshot.
 
 ## Chunk differences
 
@@ -86,7 +95,7 @@ Generated terrain, climate, biomes and unmodified resources are never written. A
 
 ```json
 {
-  "save_version": 3,
+  "save_version": 4,
   "generation_version": 4,
   "layer": "surface",
   "chunk": [-1, -5],
@@ -96,7 +105,7 @@ Generated terrain, climate, biomes and unmodified resources are never written. A
 
 Resource keys contain signed world tile X, signed world tile Y and stable resource code. On load, the generated chunk is unchanged; `ResourceHarvestState` hides keys listed by the difference layer. This guarantees that deterministic generation remains the source of truth and collected nodes cannot drop twice.
 
-An unmodified world may contain the `chunks/surface` directory but contains zero difference files. The V0.7 regression fixture modifies exactly two chunks and asserts that exactly two JSON files exist.
+An unmodified world may contain the `chunks/surface` directory but contains zero difference files. The regression fixture modifies exactly two chunks and asserts that exactly two JSON files exist.
 
 ## Save lifecycle
 
@@ -116,8 +125,12 @@ Manual saves copy the existing metadata, player document and difference files in
 
 ## Corruption behavior
 
-Loading validates readable JSON objects, save version 3 or migratable version 2, exact generation version, required metadata, player position/attributes, inventory slots and difference arrays. Parse failures include the filename, parser line and message. The Continue action leaves the player on the menu and displays `SaveManager.last_error`; it never silently starts a new world over damaged data.
+Loading validates readable JSON objects, save version 4 or migratable version 2/3, exact generation version, required metadata, player position/attributes, all inventory slots, durability bounds, crafting state and difference arrays. Parse failures include the filename, parser line and message. The Continue action leaves the player on the menu and displays `SaveManager.last_error`; it never silently starts a new world over damaged data.
 
-## Format-2 migration
+## Format-2 and format-3 migration
 
-V0.7 player documents stored `inventory` as an item-to-count dictionary. V0.8 accepts metadata, player and chunk-difference documents whose save version is exactly 2, validates their other fields, then feeds the count dictionary through canonical stack limits into a 24-slot model. Unknown items or quantities that exceed capacity fail with an actionable migration error. Metadata, player state and generated differences remain in memory as format 3 and are transactionally committed as format 3 by the next save. Migration never changes generation format or recreates unmodified chunks.
+V0.7 format-2 player documents stored `inventory` as an item-to-count dictionary. V0.9 validates the legacy fields, feeds those counts through canonical stack limits into a 24-slot inventory, assigns no invented tools and initializes crafting discoveries from the restored material slots.
+
+V0.8 format-3 documents already contain 24 inventory slots under schema 1. V0.9 accepts and normalizes those non-durable slots under schema 2, initializes crafting discovery from the known contents and preserves slot order and hotbar selection. Unknown items, over-capacity counts, invalid slots or malformed documents fail with actionable migration errors rather than being truncated.
+
+Both paths update metadata, player state and chunk-difference documents in memory to save format 4 and transactionally commit format 4 on the next save. Migration never changes generation format or recreates unmodified chunks.

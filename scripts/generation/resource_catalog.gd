@@ -138,6 +138,14 @@ func item_color(item_id: StringName) -> Color:
 	return _item_catalog.item_color(item_id)
 
 
+func item_maximum_stack(item_id: StringName) -> int:
+	return _item_catalog.maximum_stack(item_id)
+
+
+func item_is_durable(item_id: StringName) -> bool:
+	return _item_catalog.is_durable(item_id)
+
+
 func candidate_code_for_biome(biome_id: StringName, roll: float) -> int:
 	var cursor := 0.0
 	for definition in _resources:
