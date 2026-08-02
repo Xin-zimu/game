@@ -3,7 +3,7 @@ extends RefCounted
 
 const DEFAULT_CONFIG_PATH := "res://data/items.json"
 const REQUIRED_ITEM_IDS := [
-	"wood", "stone", "fiber", "branch", "wildflower", "slime_gel", "wolf_pelt", "bat_wing", "berry", "cooked_berries",
+	"wood", "stone", "fiber", "branch", "wildflower", "slime_gel", "wolf_pelt", "bat_wing", "ancient_core", "berry", "cooked_berries",
 	"wood_axe", "wood_pickaxe", "wood_sword", "stone_axe", "stone_pickaxe", "stone_sword",
 	"workbench", "campfire", "torch",
 ]

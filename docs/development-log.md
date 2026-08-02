@@ -1,5 +1,32 @@
 # Development Log
 
+## V1.0.0 - First complete playable build
+
+- Added a basic 300-second day/night clock driven by persisted world time and a presentation-only night overlay.
+- Added validated milestone data for a deterministic canonical ruin, a small ruin guardian and the ancient-core reward.
+- Added a bounded-ring ruin planner that queries land/biome fields without changing generation-v4 `ChunkData` bytes.
+- Added guardian chase and telegraphed slam combat, one terminal defeat event and a retry-safe one-time reward interaction.
+- Added ordered milestone state, direction/distance guidance and a compact day/objective/Boss HUD.
+- Added locally synthesized PCM cues for attacks, blocked actions, success, Boss events and milestone completion.
+- Advanced save format to 6 with explicit format-2/3/4/5 migration while preserving generation format 4.
+- Removed training fixtures from normal world startup because real procedural enemies and the ruin guardian now validate combat.
+- Expanded the suite from 377 to 409 checks before final font, documentation, visual and build gates.
+
+### Iteration findings
+
+- Generating complete chunks for every ruin-search candidate made repeated scene startup unnecessarily expensive. The planner now samples nine pure terrain points per candidate and reserves full chunk generation for normal streaming.
+- A deterministic landmark must not silently invalidate a stable terrain world. The ruin is a separately versioned overlay, so the generation-v4 checksum and old world coordinates remain unchanged.
+- Marking the Boss defeated before a full-inventory reward transfer could permanently lose progression. The claim transition commits only after the canonical inventory accepts the complete one-item reward.
+- A discoverable landmark several chunks away needs actionable guidance. The milestone snapshot now exposes coarse direction and distance without serializing player-relative data.
+
+### Decisions
+
+- V1.0 implements only the plan's basic day/night split; dawn, dusk, complete lighting, night enemies and night resources remain V1.1.
+- The single ruin is canonical per seed and lies three to six chunks from the original spawn region.
+- `game_time_seconds` remains the sole clock persistence field; milestone state receives schema 1 under save format 6.
+- Basic sound is generated at runtime from bounded PCM samples, keeping the release fully local and license-simple.
+- V1.0 runtime/data/test text expands the project font to 536 required characters with zero missing glyphs.
+
 ## V0.11.0 - Basic enemies
 
 - Added validated data definitions for slimes, wolves and cave bats with biome, movement, combat and drop rules.

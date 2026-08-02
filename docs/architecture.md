@@ -1,17 +1,17 @@
 # Architecture
 
-Infinite Frontier uses a layered, data-oriented Godot architecture. This document records the foundation through V0.11.0 and will evolve with every version.
+Infinite Frontier uses a layered, data-oriented Godot architecture. This document records the first complete playable foundation through V1.0.0 and will evolve with every version.
 
 ## Runtime layers
 
-| Layer | Responsibility | Components through V0.11.0 |
+| Layer | Responsibility | Components through V1.0.0 |
 |---|---|---|
 | Core | Application lifecycle, settings, logging, events | `GameManager`, `SettingsManager`, `SaveManager`, `LogManager`, `EventBus` |
-| Presentation | Scenes, menus and debug UI | `main_menu.gd`, `world_sandbox.gd`, `GameplayHud`, `CombatHud`, `EnemyHud`, `GenerationHud`, `ResourceHud`, `InventoryPanel`, `CraftingPanel`, `DebugPanel` |
-| Gameplay | Player, interaction, combat and progression | `PlayerCharacter`, `PlayerMotor`, `PlayerVisual`, `PixelCamera`, `ResourceHarvestState`, `InventoryModel`, `CraftingSystem`, `PlayerCombatController`, `PlayerCombatState`, `GraveModel`, `EnemyBase`, `EnemyStateMachine`, `EnemyDirector` |
+| Presentation | Scenes, menus and debug UI | `main_menu.gd`, `world_sandbox.gd`, `GameplayHud`, `CombatHud`, `EnemyHud`, `MilestoneHud`, `DayNightOverlay`, `GenerationHud`, `ResourceHud`, `InventoryPanel`, `CraftingPanel`, `DebugPanel` |
+| Gameplay | Player, interaction, combat and progression | `PlayerCharacter`, `PlayerMotor`, `PlayerVisual`, `PixelCamera`, `ResourceHarvestState`, `InventoryModel`, `CraftingSystem`, `PlayerCombatController`, `PlayerCombatState`, `GraveModel`, `EnemyBase`, `EnemyStateMachine`, `EnemyDirector`, `DayNightCycle`, `MilestoneState`, `RuinEncounter`, `RuinGuardian` |
 | World | Coordinates, chunk data, persistence and streaming | `WorldCoordinates`, `ChunkData`, `ChunkStreamPlanner`, `ChunkGenerationJob`, `ChunkStreamManager`, `ChunkRenderer`, `ResourceChunkLayer`, `WorldDropPool`, `SaveWriteJob` |
-| Generation | Pure deterministic world data | `WorldSeed`, `BiomeCatalog`, `ResourceCatalog`, `ResourceGenerator`, `TerrainGenerator` |
-| Data | Stable IDs and data-driven content | `data/biomes.json`, `data/resources.json`, `data/items.json`, `data/recipes.json`, `data/weapons.json`, `data/enemies.json`, catalog and definition resources |
+| Generation | Pure deterministic world data | `WorldSeed`, `BiomeCatalog`, `ResourceCatalog`, `ResourceGenerator`, `TerrainGenerator`, `RuinPlanner` |
+| Data | Stable IDs and data-driven content | `data/biomes.json`, `data/resources.json`, `data/items.json`, `data/recipes.json`, `data/weapons.json`, `data/enemies.json`, `data/milestones.json`, catalog and definition resources |
 
 ## Architectural rules
 
@@ -101,6 +101,16 @@ Each craft clones the complete inventory, deducts inputs and adds output on that
 
 World metadata, player attributes and generated-world differences are separate documents. Collected resource keys are grouped by mathematical chunk coordinate. Only groups with at least one permanent change are written, so visiting or unloading an unmodified chunk cannot create a save file. See `docs/save-format.md` for the normative schema.
 
-Save format 5 adds player combat state and versioned grave snapshots to the format-4 inventory/crafting data. Format-2 count dictionaries, format-3 inventory-schema-1 documents and format-4 crafting documents are accepted only by explicit migration paths and are committed as format 5 on the next save. Generation stays at format 4 because combat does not alter deterministic base-world bytes.
+Save format 6 adds milestone state to the format-5 combat/grave data. Format-2 count dictionaries, format-3 inventory-schema-1 documents, format-4 crafting documents and format-5 combat/grave documents are accepted only by explicit migration paths and are committed as format 6 on the next save. Generation stays at format 4 because the canonical ruin is a separate deterministic overlay and does not alter terrain, biome, resource or checksum bytes.
 
 V0.11 enemies are runtime challenge entities rather than permanent world differences. Their base candidates, active AI state and respawn cooldowns are intentionally not serialized. Canonical enemy-drop items become normal inventory entries when picked up and are therefore persisted by the unchanged inventory schema 2.
+
+## Adventure-loop ownership
+
+`DayNightCycle` is a scene-free time model driven by the already persisted `game_time_seconds`. V1.0 deliberately exposes only basic day/night phases; the richer dawn/dusk lighting and time-driven ecology remain V1.1 scope. `DayNightOverlay` and `MilestoneHud` consume event snapshots and own no time or progression rules.
+
+`MilestoneCatalog` validates ruin search limits, guardian combat values and the canonical reward item. `RuinPlanner` samples a bounded chunk ring using only seed-derived ranks and pure terrain queries, yielding exactly one stable land landmark. The landmark remains outside `ChunkData`, preserving every generation-v4 fixture.
+
+`RuinEncounter` owns discovery, Boss activation, core interaction and presentation. `RuinGuardian` owns its physical combat state and emits one terminal defeat event. `MilestoneState` enforces the ordered discover → defeat → claim transition and rejects impossible snapshots. Reward insertion uses `InventoryModel`; a full inventory leaves the core claimable, while a committed claim can never mint a second item.
+
+`AudioCuePlayer` generates short bounded PCM waveforms locally and maps combat, interaction and milestone events to basic cues. It contains no gameplay decisions and requires no downloaded audio or network service.
