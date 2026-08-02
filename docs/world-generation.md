@@ -2,7 +2,7 @@
 
 ## Version
 
-- Game version: `0.10.0`
+- Game version: `0.11.0`
 - Generation version: `4`
 - Chunk size: `32×32` world tiles
 - Tile size: `32×32` display pixels
@@ -56,6 +56,10 @@ The generation-v4 fixture for seed `无尽边境` and chunk `(-1,-4)` is `25b17b
 The surface is divided into signed global 2×2-tile candidate cells. Each cell derives one stable hash from the world seed, signed cell coordinate and generation version. Hash fields determine the jittered tile, biome-weight roll, visual variant and conflict rank. A candidate is accepted only if no lower-ranked candidate lies closer than the larger of both resource spacing rules. The neighborhood is evaluated from global cells, so spacing is identical within chunks and across seams, including negative coordinates.
 
 The generation-v4 25-chunk regression region contains all five resource types and 1,155 unique spawns. Pairwise spacing is checked across the complete region. A 6×6 visual-evidence region contains tree 464, rock 225, grass 542, flower 265 and berry bush 194 nodes.
+
+## Runtime enemy candidate contract
+
+Enemy candidates use a separate deterministic hash of world seed, signed chunk coordinate and slot number. The selected tile is accepted only on land, outside an exact resource-candidate tile and in a biome allowed by `data/enemies.json`. This planner does not append bytes to `ChunkData`; enemy movement, death and respawn are session behavior, so the generation-v4 checksum fixture is unchanged. Its cache is bounded to the current 49 preload chunks.
 
 ## Data/render boundary
 

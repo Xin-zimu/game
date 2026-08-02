@@ -1,17 +1,17 @@
 # Architecture
 
-Infinite Frontier uses a layered, data-oriented Godot architecture. This document records the foundation through V0.10.0 and will evolve with every version.
+Infinite Frontier uses a layered, data-oriented Godot architecture. This document records the foundation through V0.11.0 and will evolve with every version.
 
 ## Runtime layers
 
-| Layer | Responsibility | Components through V0.10.0 |
+| Layer | Responsibility | Components through V0.11.0 |
 |---|---|---|
 | Core | Application lifecycle, settings, logging, events | `GameManager`, `SettingsManager`, `SaveManager`, `LogManager`, `EventBus` |
-| Presentation | Scenes, menus and debug UI | `main_menu.gd`, `world_sandbox.gd`, `GameplayHud`, `CombatHud`, `GenerationHud`, `ResourceHud`, `InventoryPanel`, `CraftingPanel`, `DebugPanel` |
-| Gameplay | Player, interaction, combat and progression | `PlayerCharacter`, `PlayerMotor`, `PlayerVisual`, `PixelCamera`, `ResourceHarvestState`, `InventoryModel`, `CraftingSystem`, `PlayerCombatController`, `PlayerCombatState`, `GraveModel` |
+| Presentation | Scenes, menus and debug UI | `main_menu.gd`, `world_sandbox.gd`, `GameplayHud`, `CombatHud`, `EnemyHud`, `GenerationHud`, `ResourceHud`, `InventoryPanel`, `CraftingPanel`, `DebugPanel` |
+| Gameplay | Player, interaction, combat and progression | `PlayerCharacter`, `PlayerMotor`, `PlayerVisual`, `PixelCamera`, `ResourceHarvestState`, `InventoryModel`, `CraftingSystem`, `PlayerCombatController`, `PlayerCombatState`, `GraveModel`, `EnemyBase`, `EnemyStateMachine`, `EnemyDirector` |
 | World | Coordinates, chunk data, persistence and streaming | `WorldCoordinates`, `ChunkData`, `ChunkStreamPlanner`, `ChunkGenerationJob`, `ChunkStreamManager`, `ChunkRenderer`, `ResourceChunkLayer`, `WorldDropPool`, `SaveWriteJob` |
 | Generation | Pure deterministic world data | `WorldSeed`, `BiomeCatalog`, `ResourceCatalog`, `ResourceGenerator`, `TerrainGenerator` |
-| Data | Stable IDs and data-driven content | `data/biomes.json`, `data/resources.json`, `data/items.json`, `data/recipes.json`, `data/weapons.json`, catalog and definition resources |
+| Data | Stable IDs and data-driven content | `data/biomes.json`, `data/resources.json`, `data/items.json`, `data/recipes.json`, `data/weapons.json`, `data/enemies.json`, catalog and definition resources |
 
 ## Architectural rules
 
@@ -85,6 +85,14 @@ Each craft clones the complete inventory, deducts inputs and adds output on that
 
 `GraveModel` owns a versioned list of graves and transfers normalized inventory snapshots transactionally. `ChunkStreamManager` renders the small set of grave markers, prioritizes nearby grave interaction over resource interaction and includes grave state in persistence. Partial reclaim retains every unaccepted remainder inside the grave.
 
+## Enemy ownership
+
+`data/enemies.json` defines the three stable enemy IDs, allowed surface biomes, movement profile, health/defense, awareness distances, attack timing and canonical drop rules. `EnemyCatalog` validates every biome and item reference. `EnemySpawnPlanner` derives candidates only from the world seed, signed chunk coordinate, slot number and pure terrain queries; water and exact resource-candidate tiles are rejected. Runtime enemy placement therefore remains reproducible without becoming part of generation-format-4 chunk bytes.
+
+`EnemyStateMachine` is a scene-free eight-state model. `EnemyBase` owns health, physical motion, hurt/knockback, player damage and visuals; it cannot change population rules. Ground and flying profiles all use `CharacterBody2D` collision against the World layer. A collision selects a stable tangent for a short avoidance window, allowing pursuit around finite obstacles without passing through their polygons.
+
+`EnemyDirector` alone owns active nodes and spawn/despawn cooldowns. It rejects candidates inside the viewport plus a 96-pixel margin or inside the 760-pixel minimum radius, caps the population at 18 and each chunk at three candidates, stops complex state ticks past 920 pixels, and unloads entities past 1700 pixels. Its planner cache is pruned to the current 49-chunk preload square on every population update. Death removes the active identity once and forwards deterministic drops into the existing bounded `WorldDropPool`; accepted pickups then follow the canonical inventory path.
+
 ## Persistence ownership
 
 `SaveManager` is an autoload because it must survive scene changes and join outstanding file tasks at shutdown. It owns world selection, schema validation, immutable save snapshots and last-error state. It never asks `PlayerCharacter` to write a file: the player and resource systems expose plain dictionaries, and `world_sandbox.gd` orchestrates the save request.
@@ -94,3 +102,5 @@ Each craft clones the complete inventory, deducts inputs and adds output on that
 World metadata, player attributes and generated-world differences are separate documents. Collected resource keys are grouped by mathematical chunk coordinate. Only groups with at least one permanent change are written, so visiting or unloading an unmodified chunk cannot create a save file. See `docs/save-format.md` for the normative schema.
 
 Save format 5 adds player combat state and versioned grave snapshots to the format-4 inventory/crafting data. Format-2 count dictionaries, format-3 inventory-schema-1 documents and format-4 crafting documents are accepted only by explicit migration paths and are committed as format 5 on the next save. Generation stays at format 4 because combat does not alter deterministic base-world bytes.
+
+V0.11 enemies are runtime challenge entities rather than permanent world differences. Their base candidates, active AI state and respawn cooldowns are intentionally not serialized. Canonical enemy-drop items become normal inventory entries when picked up and are therefore persisted by the unchanged inventory schema 2.

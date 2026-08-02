@@ -24,6 +24,8 @@ func _ready() -> void:
 	_test_weapon_catalog_contract()
 	_test_attack_sequence_and_damage()
 	_test_player_combat_state_and_graves()
+	_test_enemy_catalog_and_state_machine()
+	_test_enemy_spawn_planner()
 	_test_deterministic_generation()
 	_test_biome_regions()
 	_test_resource_generation()
@@ -40,6 +42,7 @@ func _ready() -> void:
 	await _test_inventory_panel_layout()
 	await _test_crafting_panel_layout()
 	await _test_combat_nodes_and_hud()
+	await _test_enemy_runtime_and_hud()
 	await _test_main_menu_layout()
 	_finish()
 
@@ -50,11 +53,12 @@ func _test_project_resources() -> void:
 	_assert_true(ResourceLoader.exists("res://scenes/player/player.tscn"), "player scene exists")
 	_assert_true(ResourceLoader.exists("res://assets/branding/icon.svg"), "application icon exists")
 	_assert_true(ResourceLoader.exists("res://data/weapons.json"), "weapon catalog exists")
+	_assert_true(ResourceLoader.exists("res://data/enemies.json"), "enemy catalog exists")
 
 
 func _test_version_contract() -> void:
-	_assert_equal(GameVersion.VERSION, "0.10.0", "version constant")
-	_assert_equal(GameVersion.SAVE_VERSION, 5, "save version incremented for V0.10 combat status and graves")
+	_assert_equal(GameVersion.VERSION, "0.11.0", "version constant")
+	_assert_equal(GameVersion.SAVE_VERSION, 5, "V0.11 runtime enemies preserve save format 5")
 	_assert_equal(GameVersion.GENERATION_VERSION, 4, "generation version incremented")
 
 
@@ -70,6 +74,7 @@ func _test_event_bus_contract() -> void:
 	_assert_true(EventBus.has_signal("combat_status_changed"), "combat status signal exists")
 	_assert_true(EventBus.has_signal("combat_feedback"), "combat feedback signal exists")
 	_assert_true(EventBus.has_signal("grave_state_changed"), "grave state signal exists")
+	_assert_true(EventBus.has_signal("enemy_state_changed"), "enemy population signal exists")
 	_assert_true(EventBus.has_signal("save_status_changed"), "save status signal exists")
 
 
@@ -149,7 +154,7 @@ func _test_item_catalog_contract() -> void:
 	_assert_equal(catalog.slot_count(), 24, "inventory capacity is data-driven at 24 slots")
 	_assert_equal(catalog.hotbar_slot_count(), 8, "hotbar exposes the first eight inventory slots")
 	var ids := catalog.item_ids()
-	_assert_equal(ids.size(), 16, "item catalog contains 16 unique material, tool, station, food and utility IDs")
+	_assert_equal(ids.size(), 19, "item catalog contains 19 unique material, enemy-drop, tool, station, food and utility IDs")
 	for item_id in ItemCatalog.REQUIRED_ITEM_IDS:
 		_assert_true(ids.has(StringName(item_id)), "item catalog contains stable unique ID %s" % item_id)
 	_assert_equal(catalog.category_name(&"wood"), "材料", "wood exposes its item category")
@@ -158,6 +163,7 @@ func _test_item_catalog_contract() -> void:
 	_assert_true(catalog.tool_kind(&"wood_axe") == &"axe" and catalog.tool_power(&"stone_axe") == 2, "wood and stone tool kinds/power are data-driven")
 	_assert_true(catalog.maximum_durability(&"wood_pickaxe") == 30 and catalog.maximum_durability(&"stone_pickaxe") == 60, "tool durability comes from item resources")
 	_assert_true(catalog.station_kind(&"workbench") == &"workbench" and catalog.station_kind(&"campfire") == &"campfire", "workbench and campfire are stable station items")
+	_assert_true(catalog.maximum_stack(&"slime_gel") == 50 and catalog.has_item(&"wolf_pelt") and catalog.has_item(&"bat_wing"), "enemy drops are stable stackable item IDs")
 
 
 func _test_inventory_model() -> void:
@@ -353,6 +359,89 @@ func _test_player_combat_state_and_graves() -> void:
 	var reclaimed_sword_slot := _find_item_slot(reclaimed_inventory, &"stone_sword")
 	_assert_true(bool(reclaimed["complete"]) and restored_graves.grave_count() == 0, "grave reclaim removes a fully recovered grave")
 	_assert_true(reclaimed_inventory.quantity(&"wood") == 7 and int(reclaimed_inventory.slot(reclaimed_sword_slot)["durability"]) == 71, "grave reclaim preserves exact item counts and weapon durability")
+
+
+func _test_enemy_catalog_and_state_machine() -> void:
+	var catalog := EnemyCatalog.new()
+	_assert_true(catalog.is_valid(), "external enemy configuration loads and validates")
+	_assert_equal(catalog.enemy_ids(), [&"slime", &"wolf", &"cave_bat"], "enemy IDs are unique, stable and data-driven")
+	_assert_true(catalog.maximum_active() == 18 and catalog.maximum_per_chunk() == 3, "enemy population hard limits come from data")
+	_assert_true(catalog.enemy(&"slime").biomes == [&"plains", &"forest"], "slime biome rule is explicit")
+	_assert_true(catalog.enemy(&"wolf").biomes.has(&"forest") and catalog.enemy(&"wolf").biomes.has(&"snowfield"), "wolf forest and snowfield rules are explicit")
+	_assert_equal(catalog.enemy(&"cave_bat").biomes, [&"mountain"], "cave bat uses the surface mountain rule until caves exist")
+	_assert_equal(catalog.enemy_id_for_biome(&"desert", 0.5), &"", "unsupported biome produces no enemy type")
+	var slime := catalog.enemy(&"slime")
+	var machine := EnemyStateMachine.new(slime)
+	machine.tick(EnemyStateMachine.IDLE_DURATION + 0.01, 999.0, 0.0)
+	_assert_equal(machine.state_name(), &"WANDER", "enemy state machine enters deterministic wander")
+	machine.tick(0.01, slime.detection_range - 1.0, 0.0)
+	_assert_equal(machine.state_name(), &"ALERT", "nearby player moves enemy into alert")
+	machine.tick(EnemyStateMachine.ALERT_DURATION + 0.01, slime.detection_range - 1.0, 0.0)
+	_assert_equal(machine.state_name(), &"CHASE", "alert transitions into chase")
+	machine.tick(0.01, slime.attack_range - 1.0, 0.0)
+	_assert_equal(machine.state_name(), &"ATTACK", "chase enters attack at configured range")
+	var attack_result := machine.tick(slime.attack_windup + 0.01, slime.attack_range - 1.0, 0.0)
+	_assert_true(bool(attack_result["attack_ready"]) and machine.cooldown_remaining > 0.0, "enemy attack triggers once after its windup and starts cooldown")
+	var duplicate_attack := machine.tick(0.01, slime.attack_range - 1.0, 0.0)
+	_assert_true(not bool(duplicate_attack["attack_ready"]), "one attack state cannot damage twice")
+	machine.tick(slime.attack_recovery + 0.01, slime.attack_range + 10.0, 0.0)
+	machine.hurt()
+	_assert_equal(machine.state_name(), &"HURT", "accepted player hit enters enemy hurt state")
+	machine.tick(EnemyStateMachine.HURT_DURATION + 0.01, 999.0, slime.return_distance + 1.0)
+	_assert_equal(machine.state_name(), &"RETURN", "hurt enemy outside its activity area returns home")
+	machine.tick(0.01, 999.0, 0.0)
+	_assert_equal(machine.state_name(), &"IDLE", "return completes at the home position")
+	machine.die()
+	machine.tick(10.0, 0.0, 0.0)
+	_assert_equal(machine.state_name(), &"DEAD", "dead is a terminal enemy state")
+	var first_drops := catalog.resolve_drops(&"wolf", "fixture:wolf:1")
+	var second_drops := catalog.resolve_drops(&"wolf", "fixture:wolf:1")
+	_assert_equal(first_drops, second_drops, "enemy drops are deterministic for a stable spawn ID")
+	_assert_true(not first_drops.is_empty() and StringName(first_drops[0]["item_id"]) == &"wolf_pelt" and int(first_drops[0]["quantity"]) >= 1 and int(first_drops[0]["quantity"]) <= 2, "wolf death resolves a bounded canonical drop")
+
+
+func _test_enemy_spawn_planner() -> void:
+	var seed := WorldSeed.from_text("enemy-planner-fixture")
+	var catalog := EnemyCatalog.new()
+	var first := EnemySpawnPlanner.new(seed, catalog)
+	var second := EnemySpawnPlanner.new(seed, catalog)
+	var biome_catalog := BiomeCatalog.new()
+	var terrain := TerrainGenerator.new(seed)
+	var seen_ids := {}
+	var seen_spawn_ids := {}
+	var candidate_total := 0
+	var deterministic := true
+	var per_chunk_bounded := true
+	var unique_ids := true
+	var land_only := true
+	var biome_correct := true
+	for chunk_y in range(-10, 11):
+		for chunk_x in range(-10, 11):
+			var coordinate := Vector2i(chunk_x, chunk_y)
+			var first_candidates := first.candidates_for_chunk(coordinate)
+			var second_candidates := second.candidates_for_chunk(coordinate)
+			deterministic = deterministic and first_candidates == second_candidates
+			per_chunk_bounded = per_chunk_bounded and first_candidates.size() <= catalog.maximum_per_chunk()
+			for candidate in first_candidates:
+				candidate_total += 1
+				var spawn_id := String(candidate["spawn_id"])
+				var enemy_id := candidate["enemy_id"] as StringName
+				var world_tile := candidate["world_tile"] as Vector2i
+				var biome_id := biome_catalog.id_for_code(terrain.biome_at(world_tile))
+				seen_ids[enemy_id] = true
+				unique_ids = unique_ids and not seen_spawn_ids.has(spawn_id)
+				seen_spawn_ids[spawn_id] = true
+				land_only = land_only and terrain.terrain_at(world_tile) == ChunkData.Terrain.LAND
+				biome_correct = biome_correct and catalog.enemy(enemy_id).biomes.has(biome_id)
+	_assert_true(deterministic, "enemy candidates are deterministic across planner restarts")
+	_assert_true(per_chunk_bounded, "enemy candidates obey the per-chunk cap")
+	_assert_true(unique_ids, "enemy spawn IDs stay unique across signed chunks")
+	_assert_true(land_only, "enemy candidates never appear in water")
+	_assert_true(biome_correct, "enemy candidates match data-driven biome rules")
+	_assert_true(candidate_total > 0, "broad deterministic region contains enemy candidates")
+	_assert_true(seen_ids.has(&"slime") and seen_ids.has(&"wolf") and seen_ids.has(&"cave_bat"), "broad deterministic region contains all three planned enemy types")
+	first.retain_chunks([Vector2i.ZERO])
+	_assert_equal(first.cache_size(), 1, "enemy candidate cache is pruned to the retained chunk set")
 
 
 func _test_deterministic_generation() -> void:
@@ -1002,6 +1091,97 @@ func _test_combat_nodes_and_hud() -> void:
 	integration_dummy.queue_free()
 	integration_stream.queue_free()
 	integration_player.queue_free()
+
+
+func _test_enemy_runtime_and_hud() -> void:
+	var catalog := EnemyCatalog.new()
+	var player := (load("res://scenes/player/player.tscn") as PackedScene).instantiate() as PlayerCharacter
+	player.position = Vector2.ZERO
+	add_child(player)
+	var far_enemy := EnemyBase.new()
+	far_enemy.configure(catalog.enemy(&"slime"), player, "test:far:slime", Vector2(1000.0, 0.0), 500.0)
+	add_child(far_enemy)
+	await get_tree().physics_frame
+	var sleeping_ticks := far_enemy.complex_tick_count()
+	_assert_true(far_enemy.sleeping and sleeping_ticks == 0, "far enemy sleeps without running complex state logic")
+	player.position = Vector2(900.0, 0.0)
+	await get_tree().physics_frame
+	_assert_true(not far_enemy.sleeping and far_enemy.complex_tick_count() > sleeping_ticks, "nearby player wakes a sleeping enemy")
+	var defeat_events: Array = []
+	far_enemy.defeated.connect(func(spawn_id: String, enemy_id: StringName, world_position: Vector2, drops: Array) -> void:
+		defeat_events.append({"spawn_id": spawn_id, "enemy_id": enemy_id, "position": world_position, "drops": drops})
+	)
+	var lethal := far_enemy.receive_attack({"damage": 999.0, "direction": Vector2.RIGHT, "knockback": 30.0})
+	_assert_true(bool(lethal["accepted"]) and bool(lethal["died"]) and far_enemy.state_name() == &"DEAD", "lethal player hit completes enemy death state")
+	_assert_true(defeat_events.size() == 1 and not (defeat_events[0]["drops"] as Array).is_empty(), "enemy death emits one complete drop transaction")
+	var attack_enemy := EnemyBase.new()
+	attack_enemy.configure(catalog.enemy(&"wolf"), player, "test:attack:wolf", player.position + Vector2(20.0, 0.0), 500.0)
+	add_child(attack_enemy)
+	var health_before_attack := player.health
+	attack_enemy._attack_player()
+	_assert_true(player.health < health_before_attack, "enemy attack applies configured damage to the player")
+	player.combat_state().tick(PlayerCombatState.HIT_INVULNERABILITY_SECONDS + 0.01)
+	var wall := StaticBody2D.new()
+	wall.collision_layer = 1
+	wall.collision_mask = 8
+	wall.position = Vector2(55.0, 0.0)
+	var wall_shape := CollisionShape2D.new()
+	var wall_rectangle := RectangleShape2D.new()
+	wall_rectangle.size = Vector2(20.0, 2000.0)
+	wall_shape.shape = wall_rectangle
+	wall.add_child(wall_shape)
+	add_child(wall)
+	player.position = Vector2(120.0, 0.0)
+	var wall_enemy := EnemyBase.new()
+	wall_enemy.configure(catalog.enemy(&"wolf"), player, "test:wall:wolf", Vector2.ZERO, 500.0)
+	add_child(wall_enemy)
+	for _frame in 150:
+		wall_enemy._physics_process(1.0 / 60.0)
+	_assert_true(wall_enemy.global_position.x < 43.0, "ground enemy collision prevents continuous movement through a wall")
+	var hud := EnemyHud.new()
+	add_child(hud)
+	await get_tree().process_frame
+	EventBus.enemy_state_changed.emit({"active": 12, "maximum": 18, "sleeping": 5, "counts": {"slime": 5, "wolf": 4, "cave_bat": 3}, "states": {"CHASE": 2, "ATTACK": 1}})
+	await get_tree().process_frame
+	var enemy_panel := hud.find_child("EnemyPanel", true, false) as Control
+	var population_label := hud.find_child("EnemyPopulationLabel", true, false) as Label
+	var types_label := hud.find_child("EnemyTypesLabel", true, false) as Label
+	var states_label := hud.find_child("EnemyStatesLabel", true, false) as Label
+	_assert_true(enemy_panel != null and population_label != null and types_label != null and states_label != null, "enemy HUD exposes population, type and state nodes")
+	_assert_true("12/18" in population_label.text and "史莱姆 5" in types_label.text and "ATTACK 1" in states_label.text, "enemy HUD reflects bounded population and active states")
+	_assert_true(get_viewport().get_visible_rect().encloses(enemy_panel.get_global_rect()), "enemy HUD remains inside the 1280×720 viewport")
+	var director_player := (load("res://scenes/player/player.tscn") as PackedScene).instantiate() as PlayerCharacter
+	director_player.position = Vector2(8192.0, -4096.0)
+	add_child(director_player)
+	var drop_pool := WorldDropPool.new()
+	drop_pool.configure(32, ResourceCatalog.new())
+	add_child(drop_pool)
+	var director := EnemyDirector.new()
+	director.configure(WorldSeed.from_text("enemy-director-fixture"), director_player, drop_pool)
+	add_child(director)
+	await get_tree().process_frame
+	for _step in 24:
+		director.population_step()
+	_assert_true(director.active_count() > 0 and director.active_count() <= director.maximum_active(), "repeated population updates never exceed the active-enemy hard cap")
+	var all_offscreen := true
+	var spawn_minimum_held := true
+	for snapshot in director.active_snapshots():
+		var world_position := snapshot["position"] as Vector2
+		var screen_position := get_viewport().get_canvas_transform() * world_position
+		all_offscreen = all_offscreen and not Rect2(Vector2.ZERO, get_viewport().get_visible_rect().size).grow(96.0).has_point(screen_position)
+		spawn_minimum_held = spawn_minimum_held and world_position.distance_to(director_player.global_position) >= float(catalog.population_value("spawn_minimum_distance_pixels", 760.0))
+	_assert_true(all_offscreen and spawn_minimum_held, "new enemies appear outside the visible screen and minimum spawn radius")
+	director._on_enemy_defeated("test:drop:slime", &"slime", director_player.position + Vector2(20.0, 0.0), catalog.resolve_drops(&"slime", "test:drop:slime"))
+	_assert_true(drop_pool.active_quantity(&"slime_gel") >= 1, "enemy director sends canonical death drops through the bounded object pool")
+	far_enemy.queue_free()
+	attack_enemy.queue_free()
+	wall_enemy.queue_free()
+	wall.queue_free()
+	hud.queue_free()
+	director.queue_free()
+	drop_pool.queue_free()
+	director_player.queue_free()
+	player.queue_free()
 
 
 func _test_main_menu_layout() -> void:

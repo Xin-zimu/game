@@ -2,6 +2,30 @@
 
 All notable changes are recorded here. Version numbers follow the staged project plan.
 
+## [0.11.0] - 2026-08-02
+
+### Added
+
+- Validated enemy catalog for slime, wolf and cave-bat definitions, biome rules, combat values and drops.
+- Shared eight-state enemy machine covering idle, wander, alert, chase, attack, hurt, return and death.
+- Deterministic signed-chunk enemy candidates selected from terrain and biome data without water/resource overlap.
+- Screen-exclusion spawning, active/per-chunk hard caps, distance sleep, despawn cooldowns and bounded candidate cache.
+- Collision-aware `CharacterBody2D` movement with stable tangent avoidance when a world obstacle blocks pursuit.
+- Enemy attacks against player combat state, player attacks against enemy defense/health, death fade and pooled drops.
+- Canonical slime-gel, wolf-pelt and bat-wing item IDs plus population/type/state HUD.
+
+### Changed
+
+- Game version advances to 0.11.0; save format remains 5 and generation format remains 4.
+- Item catalog expands from 16 to 19 stable entries.
+- Runtime font subset expands to every V0.11 source/data/test glyph.
+
+### Fixed
+
+- Enemy population cannot grow beyond 18 active nodes or retain an unbounded explored-chunk candidate cache.
+- Spawns inside the viewport plus margin are rejected, preventing visible pop-in.
+- Far enemies stop state-machine ticks, while world collision prevents persistent movement through solid obstacles.
+
 ## [0.10.0] - 2026-08-01
 
 ### Added

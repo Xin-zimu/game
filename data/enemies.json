@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "population": {
+    "maximum_active": 18,
+    "maximum_per_chunk": 3,
+    "candidate_slots_per_chunk": 5,
+    "spawn_chance": 0.72,
+    "spawn_minimum_distance_pixels": 760.0,
+    "spawn_maximum_distance_pixels": 1450.0,
+    "despawn_distance_pixels": 1700.0,
+    "logic_sleep_distance_pixels": 920.0,
+    "respawn_cooldown_seconds": 18.0,
+    "population_tick_seconds": 0.45
+  },
+  "enemies": [
+    {
+      "id": "slime",
+      "display_name": "史莱姆",
+      "profile": "hop",
+      "color": "67b779",
+      "biomes": ["plains", "forest"],
+      "spawn_weight": 1.0,
+      "maximum_health": 38.0,
+      "defense": 1.0,
+      "move_speed": 48.0,
+      "detection_range": 185.0,
+      "disengage_range": 390.0,
+      "attack_range": 31.0,
+      "attack_power": 10.0,
+      "attack_cooldown": 1.35,
+      "attack_windup": 0.20,
+      "attack_recovery": 0.26,
+      "knockback": 82.0,
+      "return_distance": 270.0,
+      "drops": [
+        {"item_id": "slime_gel", "minimum": 1, "maximum": 2, "chance": 1.0}
+      ]
+    },
+    {
+      "id": "wolf",
+      "display_name": "野狼",
+      "profile": "pounce",
+      "color": "9b8d80",
+      "biomes": ["forest", "snowfield"],
+      "spawn_weight": 0.8,
+      "maximum_health": 52.0,
+      "defense": 2.0,
+      "move_speed": 82.0,
+      "detection_range": 245.0,
+      "disengage_range": 470.0,
+      "attack_range": 36.0,
+      "attack_power": 15.0,
+      "attack_cooldown": 1.05,
+      "attack_windup": 0.13,
+      "attack_recovery": 0.30,
+      "knockback": 128.0,
+      "return_distance": 330.0,
+      "drops": [
+        {"item_id": "wolf_pelt", "minimum": 1, "maximum": 2, "chance": 1.0},
+        {"item_id": "fiber", "minimum": 1, "maximum": 1, "chance": 0.35}
+      ]
+    },
+    {
+      "id": "cave_bat",
+      "display_name": "洞穴蝙蝠",
+      "profile": "flight",
+      "color": "7f6aa8",
+      "biomes": ["mountain"],
+      "spawn_weight": 1.0,
+      "maximum_health": 30.0,
+      "defense": 0.0,
+      "move_speed": 70.0,
+      "detection_range": 225.0,
+      "disengage_range": 430.0,
+      "attack_range": 29.0,
+      "attack_power": 9.0,
+      "attack_cooldown": 0.90,
+      "attack_windup": 0.10,
+      "attack_recovery": 0.22,
+      "knockback": 68.0,
+      "return_distance": 300.0,
+      "drops": [
+        {"item_id": "bat_wing", "minimum": 1, "maximum": 2, "chance": 1.0}
+      ]
+    }
+  ]
+}

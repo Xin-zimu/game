@@ -1,5 +1,31 @@
 # Development Log
 
+## V0.11.0 - Basic enemies
+
+- Added validated data definitions for slimes, wolves and cave bats with biome, movement, combat and drop rules.
+- Added the common idle/wander/alert/chase/attack/hurt/return/dead state machine and three presentation profiles.
+- Added deterministic signed-chunk spawn candidates that reject water, resource candidates and unsupported biomes.
+- Added screen-exclusion spawn checks, an 18-enemy hard cap, per-chunk cap, distance sleep, despawn and respawn cooldown.
+- Added collision-aware pursuit/return movement and stable tangent selection when solid world geometry blocks a route.
+- Connected enemy attacks to player invulnerability/death and player `Area2D` attacks to enemy defense, knockback and death.
+- Added deterministic pooled drops for three new canonical item IDs and a bounded enemy diagnostic HUD.
+- Preserved save format 5 and generation format 4; expanded the suite from 332 to 377 checks before final documentation/build gates.
+
+### Iteration findings
+
+- A short wall test initially classified legitimate end-running as wall penetration. The collision fixture was extended so the gate measures polygon crossing rather than successful obstacle avoidance.
+- A hard active-node cap alone does not bound memory in an infinite world if the deterministic candidate cache remembers every visited chunk. The planner now retains only the current 49-chunk preload square.
+- A radial spawn threshold does not fully guarantee off-screen placement near viewport corners. The director checks the camera canvas transform against the full viewport plus a 96-pixel margin in addition to the 760-pixel radius.
+- Far entities must skip the state-machine tick itself, not merely set velocity to zero; the runtime counter test confirms sleeping enemies perform no complex transitions.
+- V0.11 labels and new item names expanded the source/data/test font set to 496 visible characters with zero missing glyphs.
+
+### Decisions
+
+- Cave bats use mountain surface candidates until the planned underground layer exists; their stable ID and behavior remain ready for a later cave biome mapping.
+- Enemy candidates are reproducible runtime content but are excluded from `ChunkData`, so generation format 4 and its checksum fixture stay immutable.
+- Active enemy AI and respawn timers are session state. Only drops accepted into the inventory persist through the existing format-5 save contract.
+- All three movement profiles collide with the World layer, including bats, to satisfy the V0.11 no-wall-persistence gate before richer navigation arrives.
+
 ## V0.10.0 - Player combat
 
 - Added data-driven unarmed, wooden-sword and stone-sword definitions with damage, speed, range, knockback, stamina and combos.
