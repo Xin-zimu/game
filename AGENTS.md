@@ -1,22 +1,38 @@
-# Codex Project Rules
+# Infinite Frontier 本地开发约定
 
-1. Read `README.md`, this file, `CHANGELOG.md`, `docs/architecture.md`, the prior test report and current Git status before modifying a version.
-2. Implement only the active version. Do not pre-implement later roadmap features.
-3. Every version must start, run and pass its completion gate before the next version begins.
-4. World generation must be deterministic and independent of generation order.
-5. Never use a shared global random stream for generated world content.
-6. Generation code must not access the player node or mutate the scene tree.
-7. Persist generated-world differences, not complete unmodified chunks.
-8. Do not create one `Node2D` per terrain tile.
-9. Worker threads may return pure data but may not change the Godot scene tree.
-10. Every new core algorithm needs an automated test or a focused verification scene.
-11. Static game content should be data-driven and use stable, unique IDs.
-12. UI scripts must not implement generation or combat rules.
-13. Errors must be explicit and actionable; never silently swallow failures.
-14. Increment `SAVE_VERSION` when the save format changes.
-15. Increment `GENERATION_VERSION` when generation changes incompatibly.
-16. Coordinate and chunk logic must handle negative world coordinates.
-17. Test chunk seams and cross-chunk structures.
-18. Do not hard-code showcase world results.
-19. Update README, changelog, development log, test report, review and known issues for each release.
-20. Never declare a gate passed without recording the exact check and its result.
+## 项目目标
+
+按照 `docs/plans/《无尽边境》完整版本迭代开发计划.pdf`
+逐版本继续开发到 V5.0.0。
+
+V1.0.0 只是第一个基础可玩节点，不是最终版本。
+
+## 当前状态
+
+- 当前稳定基线：V1.0.0
+- 当前开发目标：V1.0.1
+- 首要反馈截图：`docs/feedback/v1.0-ui-overlap.png`
+
+## V1.0.1 必须修复
+
+1. 快捷栏遮挡“E 采集”等交互提示。
+2. 快捷栏和 HUD 不得使用固定屏幕坐标。
+3. 全屏后世界画面必须正确铺满屏幕。
+4. UI 必须适配 1280×720、1920×1080、2560×1440 和常见超宽屏。
+5. 像素画缩放必须保持清晰。
+6. 增加 Windows 本地测试和构建用的 PowerShell 脚本。
+
+## 迭代原则
+
+- 每次只开发一个版本。
+- 开始前运行上一版测试。
+- 不得为了赶进度跳过验收。
+- 不得破坏旧存档。
+- 核心功能必须补充自动测试。
+- 每版更新 README、CHANGELOG 和开发日志。
+- 每版生成独立测试报告、复核报告、已知问题和截图目录。
+- 每版单独提交 Git Commit。
+- 未经用户同意，不主动推送或合并 GitHub 分支。
+- 不使用 GitHub 插件逐文件上传；使用本机 Git 和 GitHub CLI。
+- 不连接 API，游戏必须完全离线。
+- 不运行来源不明的二进制文件。

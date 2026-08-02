@@ -2,6 +2,28 @@
 
 All notable changes are recorded here. Version numbers follow the staged project plan.
 
+## [1.0.1] - 2026-08-02
+
+### Added
+
+- Shared responsive UI layout helpers and automated containment/overlap checks for four target resolutions.
+- Windows PowerShell test and release-build gates with PE x64, runtime smoke and SHA-256 validation.
+- Actual GPU screenshots for windowed target resolutions and exclusive fullscreen.
+
+### Changed
+
+- HUD panels, inventory, crafting, hotbar and interaction prompts now use anchors and viewport-relative safe areas.
+- Window content expands to fill the display while nearest filtering preserves crisp pixel edges.
+- Fullscreen uses exclusive fullscreen and game/export metadata advances to 1.0.1; save format 6 and generation format 4 remain unchanged.
+
+### Fixed
+
+- The hotbar no longer covers the `E` interaction prompt.
+- HUD elements no longer depend on fixed 1280×720 screen coordinates.
+- Fullscreen and common widescreen/ultrawide resolutions no longer retain a fixed-size world image.
+- Biome condition checks no longer invoke redundant runtime float constructors during threaded generation.
+- PowerShell tests restore temporary Godot profile environment variables before the release export begins.
+
 ## [1.0.0] - 2026-08-02
 
 ### Added

@@ -154,12 +154,12 @@ func _load_config() -> void:
 
 func _matches_conditions(values: Dictionary, conditions: Dictionary) -> bool:
 	for dimension in ["temperature", "moisture", "elevation", "erosion"]:
-		var value := float(values[dimension])
+		var value: float = values[dimension]
 		var minimum_key := "%s_min" % dimension
 		var maximum_key := "%s_max" % dimension
-		if conditions.has(minimum_key) and value < float(conditions[minimum_key]):
+		if conditions.has(minimum_key) and value < conditions[minimum_key]:
 			return false
-		if conditions.has(maximum_key) and value > float(conditions[maximum_key]):
+		if conditions.has(maximum_key) and value > conditions[maximum_key]:
 			return false
 	return true
 
@@ -167,13 +167,13 @@ func _matches_conditions(values: Dictionary, conditions: Dictionary) -> bool:
 func _distance_to_condition_edge(values: Dictionary, conditions: Dictionary) -> float:
 	var distance := INF
 	for dimension in ["temperature", "moisture", "elevation", "erosion"]:
-		var value := float(values[dimension])
+		var value: float = values[dimension]
 		var minimum_key := "%s_min" % dimension
 		var maximum_key := "%s_max" % dimension
 		if conditions.has(minimum_key):
-			distance = minf(distance, value - float(conditions[minimum_key]))
+			distance = minf(distance, value - conditions[minimum_key])
 		if conditions.has(maximum_key):
-			distance = minf(distance, float(conditions[maximum_key]) - value)
+			distance = minf(distance, conditions[maximum_key] - value)
 	return distance
 
 

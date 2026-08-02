@@ -171,8 +171,7 @@ func split_slot(from_index: int) -> void:
 func _build_inventory_window() -> void:
 	_inventory_window = PanelContainer.new()
 	_inventory_window.name = "InventoryWindow"
-	_inventory_window.position = Vector2(365, 112)
-	_inventory_window.custom_minimum_size = Vector2(550, 470)
+	UiLayout.centered(_inventory_window, Vector2(550, 470))
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color("071319f7")
 	style.border_color = Color("8b6d47")
@@ -247,8 +246,7 @@ func _build_inventory_window() -> void:
 func _build_hotbar() -> void:
 	var hotbar := PanelContainer.new()
 	hotbar.name = "Hotbar"
-	hotbar.position = Vector2(414, 620)
-	hotbar.custom_minimum_size = Vector2(452, 62)
+	UiLayout.bottom_center(hotbar, UiLayout.HOTBAR_SIZE, UiLayout.HOTBAR_BOTTOM_MARGIN)
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color("071319e8")
 	style.border_color = Color("506e60")

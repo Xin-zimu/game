@@ -41,8 +41,7 @@ func set_crafting_open(open: bool) -> void:
 func _build_window() -> void:
 	_window = PanelContainer.new()
 	_window.name = "CraftingWindow"
-	_window.position = Vector2(335, 86)
-	_window.custom_minimum_size = Vector2(610, 520)
+	UiLayout.centered(_window, Vector2(610, 520))
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color("071319f7")
 	style.border_color = Color("b26f3f")

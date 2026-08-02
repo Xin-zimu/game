@@ -17,8 +17,7 @@ func _ready() -> void:
 func _build_panel() -> void:
 	var panel := PanelContainer.new()
 	panel.name = "EnemyPanel"
-	panel.position = Vector2(958, 154)
-	panel.custom_minimum_size = Vector2(298, 108)
+	UiLayout.top_right(panel, Vector2(298, 108), Vector2(UiLayout.EDGE_MARGIN, 154))
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color("111018e8")
 	style.border_color = Color("745f8f")

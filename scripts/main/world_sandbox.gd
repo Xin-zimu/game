@@ -28,7 +28,7 @@ func _ready() -> void:
 		_world_seed = SaveManager.current_seed()
 		_game_time_seconds = SaveManager.current_game_time_seconds()
 	_build_world()
-	LogManager.info("WorldSandbox", "V1.0.0 complete survival loop ready: %s" % (SaveManager.current_world_name() if SaveManager.has_current_world() else "temporary"))
+	LogManager.info("WorldSandbox", "V%s complete survival loop ready: %s" % [GameVersion.VERSION, SaveManager.current_world_name() if SaveManager.has_current_world() else "temporary"])
 
 
 func _process(delta: float) -> void:

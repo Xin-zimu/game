@@ -62,8 +62,7 @@ func update_streaming(metrics: Dictionary) -> void:
 func _build_panel() -> void:
 	var panel := PanelContainer.new()
 	panel.name = "GenerationPanel"
-	panel.position = Vector2(344, 24)
-	panel.custom_minimum_size = Vector2(592, 132)
+	UiLayout.top_center(panel, Vector2(592, 132), 66)
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color("08171ee8")
 	style.border_color = Color("477c91")

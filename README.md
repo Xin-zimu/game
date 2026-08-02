@@ -2,7 +2,7 @@
 
 一款完全本地运行的 2D 俯视角程序化无限世界生存探索 RPG。项目按照可回退、可测试、可独立运行的版本路线，从 V0.1.0 连续迭代至最终 V5.0.0。
 
-> 当前稳定版本：**V1.0.0 - 基础完整可玩版**
+> 当前本地候选版本：**V1.0.1 - UI 与 Windows 流程修复版**（等待试玩确认后发布）
 
 ## 核心原则
 
@@ -100,11 +100,22 @@ godot4 --path .
 
 ## 测试
 
+Windows PowerShell：
+
+```powershell
+.\tools\run_tests.ps1 -GodotBin C:\path\to\godot.exe -PythonBin C:\path\to\python.exe
+.\tools\build_release.ps1 -GodotBin C:\path\to\godot.exe -PythonBin C:\path\to\python.exe
+```
+
+Linux/macOS shell：
+
 ```bash
 GODOT_BIN=/path/to/godot tools/run_tests.sh
 ```
 
 测试流程依次执行结构验证、资源导入、自动测试、主菜单冒烟测试和游戏场景冒烟测试；日志中出现脚本错误也会直接阻断发布。
+
+V1.0.1 使用锚点与安全区适配 1280×720、1920×1080、2560×1440 和常见超宽屏；世界画面以 `expand` 拉伸模式铺满窗口，像素纹理保持 nearest 过滤。由于 1920×1080 相对 1280×720 是 1.5 倍，窗口缩放采用 fractional，避免 integer 模式留下未铺满区域。
 
 生成并验证 Windows/Linux 发布包：
 

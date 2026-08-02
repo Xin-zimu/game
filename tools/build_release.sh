@@ -20,7 +20,7 @@ mkdir -p "$BUILD_ROOT/windows" "$BUILD_ROOT/linux"
 "$GODOT_BIN" --headless --path "$PROJECT_ROOT" --export-release "Linux/X11" "$BUILD_ROOT/linux/InfiniteFrontier.x86_64"
 
 "$BUILD_ROOT/linux/InfiniteFrontier.x86_64" --headless --audio-driver Dummy --quit-after 3 2>&1 | tee "$SMOKE_LOG"
-if grep -Eq 'SCRIPT ERROR|^ERROR:' "$SMOKE_LOG"; then
+if grep -Eq 'SCRIPT ERROR|^ERROR:|CrashHandlerException|ObjectDB instances were leaked' "$SMOKE_LOG"; then
 	echo "Exported Linux build logged an engine or script error." >&2
 	exit 1
 fi

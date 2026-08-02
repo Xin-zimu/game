@@ -46,6 +46,9 @@ func _ready() -> void:
 	await _test_enemy_runtime_and_hud()
 	await _test_adventure_runtime_and_hud()
 	await _test_main_menu_layout()
+	await _test_responsive_ui_layouts()
+	await get_tree().process_frame
+	await get_tree().process_frame
 	_finish()
 
 
@@ -60,7 +63,7 @@ func _test_project_resources() -> void:
 
 
 func _test_version_contract() -> void:
-	_assert_equal(GameVersion.VERSION, "1.0.0", "version constant")
+	_assert_equal(GameVersion.VERSION, "1.0.1", "version constant")
 	_assert_equal(GameVersion.SAVE_VERSION, 6, "V1.0 milestone progression advances save format 6")
 	_assert_equal(GameVersion.GENERATION_VERSION, 4, "V1.0 landmark overlay preserves generation version 4")
 
@@ -1087,6 +1090,64 @@ func _test_crafting_panel_layout() -> void:
 	panel.set_crafting_open(false)
 	_assert_true(not panel.is_crafting_open(), "crafting panel closes without mutating recipes")
 	panel.queue_free()
+
+
+func _test_responsive_ui_layouts() -> void:
+	var resolutions := [
+		Vector2i(1280, 720),
+		Vector2i(1920, 1080),
+		Vector2i(2560, 1440),
+		Vector2i(3440, 1440),
+	]
+	for resolution in resolutions:
+		var viewport := SubViewport.new()
+		viewport.size = resolution
+		viewport.render_target_update_mode = SubViewport.UPDATE_DISABLED
+		add_child(viewport)
+		var canvas := Control.new()
+		canvas.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		viewport.add_child(canvas)
+		var gameplay := GameplayHud.new()
+		var generation := GenerationHud.new()
+		var combat := CombatHud.new()
+		var enemy := EnemyHud.new()
+		var milestone := MilestoneHud.new()
+		var resource := ResourceHud.new()
+		var inventory := InventoryPanel.new()
+		for hud in [gameplay, generation, combat, enemy, milestone, resource, inventory]:
+			canvas.add_child(hud)
+		await get_tree().process_frame
+		EventBus.resource_prompt_changed.emit("[E] 采集树木 · 耐久 3")
+		await get_tree().process_frame
+		var visible := Rect2(Vector2.ZERO, Vector2(resolution))
+		var controls := [
+			gameplay.find_child("GameplayPanel", true, false) as Control,
+			gameplay.find_child("ControlHintsLabel", true, false) as Control,
+			generation.find_child("GenerationPanel", true, false) as Control,
+			combat.find_child("CombatPanel", true, false) as Control,
+			combat.find_child("CombatFeedbackLabel", true, false) as Control,
+			enemy.find_child("EnemyPanel", true, false) as Control,
+			milestone.find_child("MilestonePanel", true, false) as Control,
+			resource.find_child("ResourcePanel", true, false) as Control,
+			resource.find_child("ResourcePromptLabel", true, false) as Control,
+			inventory.find_child("Hotbar", true, false) as Control,
+		]
+		var all_inside := true
+		for control in controls:
+			all_inside = all_inside and control != null and visible.encloses(control.get_global_rect())
+		_assert_true(all_inside, "all HUD controls stay inside %d×%d" % [resolution.x, resolution.y])
+		var prompt := resource.find_child("ResourcePromptLabel", true, false) as Control
+		var hotbar := inventory.find_child("Hotbar", true, false) as Control
+		var hints := gameplay.find_child("ControlHintsLabel", true, false) as Control
+		_assert_true(
+			prompt != null and hotbar != null and hints != null
+			and not prompt.get_global_rect().intersects(hotbar.get_global_rect())
+			and not hints.get_global_rect().intersects(prompt.get_global_rect())
+			and not hints.get_global_rect().intersects(hotbar.get_global_rect()),
+			"interaction prompt, hints and hotbar keep safe spacing at %d×%d" % [resolution.x, resolution.y]
+		)
+		viewport.queue_free()
+		await get_tree().process_frame
 
 
 func _test_combat_nodes_and_hud() -> void:

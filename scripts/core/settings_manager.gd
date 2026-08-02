@@ -76,7 +76,7 @@ func _apply_value(key: String, value: Variant) -> void:
 	match key:
 		"video/fullscreen":
 			DisplayServer.window_set_mode(
-				DisplayServer.WINDOW_MODE_FULLSCREEN if bool(value) else DisplayServer.WINDOW_MODE_WINDOWED
+				DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN if bool(value) else DisplayServer.WINDOW_MODE_WINDOWED
 			)
 		"video/vsync":
 			DisplayServer.window_set_vsync_mode(

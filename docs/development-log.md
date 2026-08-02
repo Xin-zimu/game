@@ -283,3 +283,15 @@
 - The compatibility renderer is the default to support more Windows computers.
 - Core content uses stable IDs and separate save/generation version numbers from the beginning.
 - Generated and downloaded binaries are release assets rather than source-controlled files.
+# V1.0.1 - Responsive UI and Windows release gate
+
+- Replaced fixed HUD positions with shared anchor-based layout helpers and explicit interaction-prompt/hotbar safe spacing.
+- Configured expanding viewport content, fractional window scaling and nearest texture filtering so 1920×1080 fills correctly without blurred texture sampling.
+- Added automated layout coverage at 1280×720, 1920×1080, 2560×1440 and 3440×1440; the suite now contains 417 passing checks.
+- Added PowerShell test/build entry points, validated a Godot 4.7.1 Windows x64 export, and captured windowed plus exclusive-fullscreen evidence.
+- Kept save format 6 and generation format 4 unchanged, preserving existing V1.0.0 saves and terrain.
+
+### Review findings
+
+- Integer-only viewport scaling cannot fill 1920×1080 from a 1280×720 base because the scale factor is 1.5; fractional viewport scaling plus nearest texture filtering is the compatible choice.
+- A single native Godot access violation occurred during the first resource-generation gate and did not reproduce in the immediate standalone rerun or subsequent complete gate.

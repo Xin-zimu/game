@@ -28,8 +28,7 @@ func _process(delta: float) -> void:
 func _build_hud() -> void:
 	var panel := PanelContainer.new()
 	panel.name = "CombatPanel"
-	panel.position = Vector2(958, 24)
-	panel.custom_minimum_size = Vector2(298, 116)
+	UiLayout.top_right(panel, Vector2(298, 116), Vector2(UiLayout.EDGE_MARGIN, UiLayout.EDGE_MARGIN))
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color("120d12e8")
 	style.border_color = Color("965448")
@@ -75,8 +74,7 @@ func _build_hud() -> void:
 	column.add_child(_grave_label)
 	_feedback_label = Label.new()
 	_feedback_label.name = "CombatFeedbackLabel"
-	_feedback_label.position = Vector2(430, 162)
-	_feedback_label.custom_minimum_size = Vector2(420, 32)
+	UiLayout.top_center(_feedback_label, Vector2(420, 32), 212)
 	_feedback_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_feedback_label.add_theme_font_size_override("font_size", 18)
 	_feedback_label.add_theme_color_override("font_color", Color("f0cc8d"))

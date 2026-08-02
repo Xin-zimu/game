@@ -13,8 +13,7 @@ func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var panel := PanelContainer.new()
 	panel.name = "MilestonePanel"
-	panel.position = Vector2(958, 306)
-	panel.custom_minimum_size = Vector2(298, 126)
+	UiLayout.top_right(panel, Vector2(298, 126), Vector2(UiLayout.EDGE_MARGIN, 306))
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color("111815e8")
 	style.border_color = Color("8f7a4f")

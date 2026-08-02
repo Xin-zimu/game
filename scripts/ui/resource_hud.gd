@@ -34,8 +34,7 @@ func _process(delta: float) -> void:
 func _build_hud() -> void:
 	var panel := PanelContainer.new()
 	panel.name = "ResourcePanel"
-	panel.position = Vector2(24, 168)
-	panel.custom_minimum_size = Vector2(310, 116)
+	UiLayout.top_left(panel, Vector2(310, 116), Vector2(UiLayout.EDGE_MARGIN, 168))
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color("08171ee8")
 	style.border_color = Color("8b6d47")
@@ -66,11 +65,7 @@ func _build_hud() -> void:
 	column.add_child(_feedback_label)
 	_prompt_label = Label.new()
 	_prompt_label.name = "ResourcePromptLabel"
-	_prompt_label.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
-	_prompt_label.offset_left = 330
-	_prompt_label.offset_right = -330
-	_prompt_label.offset_top = -116
-	_prompt_label.offset_bottom = -78
+	UiLayout.interaction_prompt(_prompt_label)
 	_prompt_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_prompt_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_prompt_label.add_theme_font_size_override("font_size", 16)

@@ -25,6 +25,7 @@ REQUIRED_PATHS = (
     "scripts/save/save_manager.gd",
     "scripts/save/save_write_job.gd",
     "scripts/ui/ui_theme_factory.gd",
+    "scripts/ui/ui_layout.gd",
     "scripts/main/world_sandbox.gd",
     "scripts/player/player_character.gd",
     "scripts/player/player_motor.gd",
@@ -90,6 +91,8 @@ REQUIRED_PATHS = (
     "tests/run_all.gd",
     "tests/test_runner.tscn",
     "tools/build_release.sh",
+    "tools/run_tests.ps1",
+    "tools/build_release.ps1",
     "tools/render_biome_map.gd",
     "tools/render_resource_map.gd",
     "tools/render_save_diff_map.gd",
@@ -108,8 +111,8 @@ def main() -> int:
             failures.append(f"autoload not registered: {autoload}")
 
     version_text = (ROOT / "scripts/core/game_version.gd").read_text(encoding="utf-8")
-    if 'const VERSION := "1.0.0"' not in version_text:
-        failures.append("game version is not 1.0.0")
+    if 'const VERSION := "1.0.1"' not in version_text:
+        failures.append("game version is not 1.0.1")
 
     if "const SAVE_VERSION := 6" not in version_text:
         failures.append("save version is not 6")

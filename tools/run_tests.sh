@@ -24,7 +24,7 @@ run_godot_check() {
   if [[ "$command_status" -ne 0 ]]; then
     return "$command_status"
   fi
-  if rg -q 'SCRIPT ERROR|^ERROR:' "$log_path"; then
+	if rg -q 'SCRIPT ERROR|^ERROR:|CrashHandlerException|ObjectDB instances were leaked' "$log_path"; then
     echo "Godot reported an error in $log_path" >&2
     return 1
   fi

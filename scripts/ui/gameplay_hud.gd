@@ -26,8 +26,8 @@ func _process(_delta: float) -> void:
 
 func _build_hud() -> void:
 	var panel := PanelContainer.new()
-	panel.position = Vector2(24, 24)
-	panel.custom_minimum_size = Vector2(310, 130)
+	panel.name = "GameplayPanel"
+	UiLayout.top_left(panel, Vector2(310, 130), Vector2(UiLayout.EDGE_MARGIN, UiLayout.EDGE_MARGIN))
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color("08171ee8")
 	style.border_color = Color("3b7056")
@@ -56,11 +56,8 @@ func _build_hud() -> void:
 	_coordinate_label.add_theme_color_override("font_color", Color("8fa79b"))
 	info.add_child(_coordinate_label)
 	var hints := Label.new()
-	hints.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
-	hints.offset_left = 260
-	hints.offset_right = -260
-	hints.offset_top = -132
-	hints.offset_bottom = -104
+	hints.name = "ControlHintsLabel"
+	UiLayout.top_center(hints, Vector2(760, 28), UiLayout.EDGE_MARGIN)
 	hints.text = "WASD 移动 · J/左键 攻击 · E 交互 · Q 工具 · I 背包 · C 制作 · 1–8 快捷栏 · Ctrl+S 保存"
 	hints.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hints.add_theme_font_size_override("font_size", 15)
