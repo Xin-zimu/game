@@ -53,14 +53,15 @@
     {
       "id": "flower",
       "code": 3,
-      "display_name": "花",
-      "color": "e69aba",
+      "display_name": "月光花",
+      "color": "9fbfff",
       "durability": 1,
       "required_tool": "hands",
       "minimum_distance_tiles": 2,
       "solid": false,
       "biome_weights": {"plains": 0.14, "forest": 0.08, "snowfield": 0.04, "swamp": 0.06},
-      "drops": [{"item_id": "wildflower", "minimum": 1, "maximum": 2}]
+      "available_phases": ["NIGHT"],
+      "drops": [{"item_id": "moonpetal", "minimum": 1, "maximum": 2}]
     },
     {
       "id": "berry_bush",

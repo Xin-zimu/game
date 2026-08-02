@@ -2,7 +2,7 @@
 
 ## Version
 
-- Game version: `1.0.0`
+- Game version: `1.1.0`
 - Save version: `6`
 - Generation version: `4`
 - Inventory schema: `2`
@@ -13,6 +13,8 @@
 - Storage root: `user://saves`
 
 Save and generation formats are independent. Save version 6 adds ordered ruin/Boss/reward progression without changing deterministic terrain bytes. Active enemies and Boss motion remain session state, while picked-up drops use inventory schema 2. Versions 2, 3, 4 and 5 are accepted only by the documented migration paths; any other save version or a mismatched generation version is rejected with a file-specific error.
+
+V1.1.0 does not change either format. `game_time_seconds` already stores exact accumulated world time; loading resumes from that value and deliberately does not add offline elapsed time. Moonflowers reuse stable resource code 3 and existing resource keys, while the added `moonpetal` item is backward-compatible with inventory schema 2.
 
 ## Directory layout
 

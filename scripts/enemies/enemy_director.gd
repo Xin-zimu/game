@@ -10,6 +10,7 @@ var _active: Dictionary = {}
 var _cooldowns: Dictionary = {}
 var _population_elapsed := 0.0
 var _spawn_cursor := 0
+var _time_phase: StringName = &"DAWN"
 
 
 func configure(world_seed: int, player: PlayerCharacter, drop_pool: WorldDropPool) -> void:
@@ -26,6 +27,7 @@ func _ready() -> void:
 		push_error("EnemyDirector requires a player, drop pool and valid enemy catalog.")
 		set_process(false)
 		return
+	EventBus.time_state_changed.connect(_on_time_state_changed)
 	population_step()
 
 
@@ -45,7 +47,7 @@ func population_step() -> void:
 	if _player == null or _planner == null:
 		return
 	_despawn_far_enemies()
-	if _active.size() < _catalog.maximum_active():
+	if _active.size() < maximum_active():
 		_spawn_from_nearby_chunks()
 	_emit_metrics()
 
@@ -64,7 +66,7 @@ func sleeping_count() -> int:
 
 
 func maximum_active() -> int:
-	return _catalog.maximum_active()
+	return _catalog.maximum_active_for_phase(_time_phase)
 
 
 func active_snapshots() -> Array[Dictionary]:
@@ -86,7 +88,7 @@ func _spawn_from_nearby_chunks() -> void:
 	_planner.retain_chunks(chunk_coordinates)
 	var candidates: Array[Dictionary] = []
 	for coordinate in chunk_coordinates:
-		candidates.append_array(_planner.candidates_for_chunk(coordinate))
+		candidates.append_array(_planner.candidates_for_chunk(coordinate, _time_phase))
 	if candidates.is_empty():
 		return
 	candidates.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
@@ -95,7 +97,7 @@ func _spawn_from_nearby_chunks() -> void:
 	var start := posmod(_spawn_cursor, candidates.size())
 	_spawn_cursor += 1
 	for offset in candidates.size():
-		if _active.size() >= _catalog.maximum_active():
+		if _active.size() >= maximum_active():
 			break
 		var candidate := candidates[posmod(start + offset, candidates.size())]
 		var spawn_id := String(candidate["spawn_id"])
@@ -179,8 +181,13 @@ func _emit_metrics() -> void:
 	EventBus.enemy_state_changed.emit({
 		"active": _active.size(),
 		"sleeping": sleeping_count(),
-		"maximum": _catalog.maximum_active(),
+		"maximum": maximum_active(),
 		"counts": counts,
 		"states": states,
 		"cooldowns": _cooldowns.size(),
 	})
+
+
+func _on_time_state_changed(snapshot: Dictionary) -> void:
+	_time_phase = StringName(snapshot.get("phase", &"DAWN"))
+	population_step()

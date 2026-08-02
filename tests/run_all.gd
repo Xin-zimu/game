@@ -63,7 +63,7 @@ func _test_project_resources() -> void:
 
 
 func _test_version_contract() -> void:
-	_assert_equal(GameVersion.VERSION, "1.0.1", "version constant")
+	_assert_equal(GameVersion.VERSION, "1.1.0", "version constant")
 	_assert_equal(GameVersion.SAVE_VERSION, 6, "V1.0 milestone progression advances save format 6")
 	_assert_equal(GameVersion.GENERATION_VERSION, 4, "V1.0 landmark overlay preserves generation version 4")
 
@@ -152,6 +152,8 @@ func _test_resource_catalog_contract() -> void:
 	_assert_equal(catalog.tool_ids(), [&"hands", &"axe", &"pickaxe"], "tool order is data-driven and stable")
 	_assert_equal(catalog.required_tool_for_code(catalog.code_for_id(&"tree")), &"axe", "trees require an axe")
 	_assert_equal(catalog.required_tool_for_code(catalog.code_for_id(&"rock")), &"pickaxe", "rocks require a pickaxe")
+	var flower_code := catalog.code_for_id(&"flower")
+	_assert_true(catalog.available_in_phase(flower_code, &"NIGHT") and not catalog.available_in_phase(flower_code, &"DAY"), "moonflowers are collectible only at night")
 	_assert_true(catalog.candidate_code_for_biome(&"deep_ocean", 0.0) < 0, "deep ocean has no resource rule")
 	_assert_true(catalog.drop_pool_capacity() == 32 and catalog.max_resources_per_chunk() == 128, "resource and drop limits come from configuration")
 
@@ -162,9 +164,10 @@ func _test_item_catalog_contract() -> void:
 	_assert_equal(catalog.slot_count(), 24, "inventory capacity is data-driven at 24 slots")
 	_assert_equal(catalog.hotbar_slot_count(), 8, "hotbar exposes the first eight inventory slots")
 	var ids := catalog.item_ids()
-	_assert_equal(ids.size(), 20, "item catalog contains 20 unique material, enemy-drop, tool, station, food, utility and reward IDs")
+	_assert_equal(ids.size(), 21, "item catalog contains 21 unique material, enemy-drop, tool, station, food, utility and reward IDs")
 	for item_id in ItemCatalog.REQUIRED_ITEM_IDS:
 		_assert_true(ids.has(StringName(item_id)), "item catalog contains stable unique ID %s" % item_id)
+	_assert_true(catalog.has_item(&"moonpetal"), "night-only moonpetal is a stable inventory item")
 	_assert_equal(catalog.category_name(&"wood"), "材料", "wood exposes its item category")
 	_assert_equal(catalog.category_name(&"berry"), "食物", "berry exposes its item category")
 	_assert_true(catalog.maximum_stack(&"wood") == 50 and catalog.maximum_stack(&"berry") == 20, "stack limits come from item data resources")
@@ -375,6 +378,8 @@ func _test_enemy_catalog_and_state_machine() -> void:
 	_assert_true(catalog.is_valid(), "external enemy configuration loads and validates")
 	_assert_equal(catalog.enemy_ids(), [&"slime", &"wolf", &"cave_bat"], "enemy IDs are unique, stable and data-driven")
 	_assert_true(catalog.maximum_active() == 18 and catalog.maximum_per_chunk() == 3, "enemy population hard limits come from data")
+	_assert_equal(catalog.maximum_active_for_phase(&"NIGHT"), 27, "night population cap increases from data")
+	_assert_true(not catalog.enemy(&"slime").is_available_in_phase(&"NIGHT") and catalog.enemy(&"cave_bat").is_available_in_phase(&"NIGHT"), "night phase replaces daytime slime candidates with nocturnal enemies")
 	_assert_true(catalog.enemy(&"slime").biomes == [&"plains", &"forest"], "slime biome rule is explicit")
 	_assert_true(catalog.enemy(&"wolf").biomes.has(&"forest") and catalog.enemy(&"wolf").biomes.has(&"snowfield"), "wolf forest and snowfield rules are explicit")
 	_assert_equal(catalog.enemy(&"cave_bat").biomes, [&"mountain"], "cave bat uses the surface mountain rule until caves exist")
@@ -458,10 +463,17 @@ func _test_milestone_models() -> void:
 	_assert_true(catalog.is_valid(), "external milestone configuration loads and validates")
 	_assert_true(catalog.reward_item_id() == &"ancient_core" and catalog.reward_quantity() == 1, "canonical Boss reward is data-driven")
 	var cycle := DayNightCycle.new(0.0)
-	_assert_equal(cycle.snapshot()["phase"], &"DAY", "new world begins in the basic daytime phase")
-	cycle.advance(DayNightCycle.CYCLE_SECONDS * DayNightCycle.DAY_FRACTION + 0.01)
-	_assert_equal(cycle.snapshot()["phase"], &"NIGHT", "basic cycle reaches the night phase deterministically")
-	cycle.advance(DayNightCycle.CYCLE_SECONDS * (1.0 - DayNightCycle.DAY_FRACTION))
+	_assert_true(cycle.is_valid(), "external four-phase time configuration loads and validates")
+	_assert_equal(cycle.phase_ids(), [&"DAWN", &"DAY", &"DUSK", &"NIGHT"], "time cycle contains dawn, day, dusk and night in order")
+	_assert_equal(cycle.snapshot()["phase"], &"DAWN", "new world begins at dawn")
+	for phase_id in [&"DAY", &"DUSK", &"NIGHT"]:
+		var phase_cycle := DayNightCycle.new(cycle.seconds_at_phase(phase_id) + 0.01)
+		_assert_equal(phase_cycle.snapshot()["phase"], phase_id, "time cycle reaches %s deterministically" % phase_id)
+	var dusk_start := cycle.seconds_at_phase(&"DUSK")
+	var dusk_mid := DayNightCycle.new(dusk_start + 60.0).snapshot()
+	var dusk_late := DayNightCycle.new(dusk_start + 115.0).snapshot()
+	_assert_true((dusk_mid["overlay"] as Color) != (dusk_late["overlay"] as Color), "environment color changes smoothly near a phase transition")
+	cycle.advance(cycle.cycle_seconds())
 	_assert_equal(int(cycle.snapshot()["day"]), 2, "day counter advances after one complete cycle")
 	var state := MilestoneState.new()
 	_assert_true(state.discover_ruin() and state.defeat_boss() and state.claim_reward(), "milestone state completes discover, Boss and reward sequence")
@@ -1336,9 +1348,10 @@ func _test_adventure_runtime_and_hud() -> void:
 	_assert_true(state.reward_claimed and inventory.quantity(&"ancient_core") == 1, "Boss reward enters inventory and completes the survival loop")
 	encounter.try_interact(inventory)
 	_assert_equal(inventory.quantity(&"ancient_core"), 1, "completed ruin cannot duplicate its one-time reward")
-	EventBus.time_state_changed.emit(DayNightCycle.new(210.0).snapshot())
+	var night_snapshot := DayNightCycle.new(DayNightCycle.new().seconds_at_phase(&"NIGHT") + 1.0).snapshot()
+	EventBus.time_state_changed.emit(night_snapshot)
 	EventBus.milestone_state_changed.emit({"objective": state.objective_text(), "reward_claimed": true, "boss_defeated": true})
-	overlay.apply_time(DayNightCycle.new(210.0).snapshot())
+	overlay.apply_time(night_snapshot)
 	await get_tree().process_frame
 	var panel := hud.find_child("MilestonePanel", true, false) as Control
 	var time_label := hud.find_child("TimeLabel", true, false) as Label
@@ -1348,10 +1361,26 @@ func _test_adventure_runtime_and_hud() -> void:
 	_assert_true("夜晚" in time_label.text and "继续探索" in objective_label.text and "核心已领取" in boss_label.text, "milestone HUD reflects the completed flow and persisted time")
 	_assert_true(get_viewport().get_visible_rect().encloses(panel.get_global_rect()), "milestone HUD remains inside the 1280×720 viewport")
 	_assert_true(overlay.color.a > 0.0, "night phase applies a visible basic lighting overlay")
+	overlay.configure_player(player)
+	overlay.set_torch_enabled(true)
+	_assert_true(overlay.torch_enabled() and overlay.material is ShaderMaterial, "selected torch activates a player-following shader light")
+	var night_resource_chunk := ChunkData.new()
+	night_resource_chunk.chunk_position = Vector2i.ZERO
+	night_resource_chunk.add_resource(Vector2i(4, 4), ResourceCatalog.new().code_for_id(&"flower"), 0)
+	var night_resource_layer := ResourceChunkLayer.new()
+	add_child(night_resource_layer)
+	night_resource_layer.apply_chunk(night_resource_chunk, {})
+	EventBus.time_state_changed.emit(DayNightCycle.new().snapshot())
+	await get_tree().process_frame
+	_assert_equal(night_resource_layer.visible_resource_count(), 0, "moonflower is hidden outside the night phase")
+	EventBus.time_state_changed.emit(night_snapshot)
+	await get_tree().process_frame
+	_assert_equal(night_resource_layer.visible_resource_count(), 1, "moonflower appears during the night phase")
 	_assert_true(audio.played_cues > 0 or audio.play_cue(&"success"), "combat and milestone events drive a playable basic sound cue")
 	encounter.queue_free()
 	hud.queue_free()
 	overlay.queue_free()
+	night_resource_layer.queue_free()
 	audio.queue_free()
 	player.queue_free()
 	await get_tree().process_frame

@@ -17,6 +17,7 @@
     {"id": "fiber", "display_name": "纤维", "category": "material", "max_stack": 50, "color": "79a85b"},
     {"id": "branch", "display_name": "树枝", "category": "material", "max_stack": 50, "color": "8f6038"},
     {"id": "wildflower", "display_name": "野花", "category": "material", "max_stack": 30, "color": "e8a6c4"},
+    {"id": "moonpetal", "display_name": "月光花瓣", "category": "material", "max_stack": 30, "color": "a8c8ff"},
     {"id": "slime_gel", "display_name": "史莱姆凝胶", "category": "material", "max_stack": 50, "color": "67b779"},
     {"id": "wolf_pelt", "display_name": "狼皮", "category": "material", "max_stack": 30, "color": "9b8d80"},
     {"id": "bat_wing", "display_name": "蝙蝠翼", "category": "material", "max_stack": 30, "color": "7f6aa8"},

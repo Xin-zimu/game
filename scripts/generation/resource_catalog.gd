@@ -113,6 +113,11 @@ func drops_for_code(code: int) -> Array:
 	return definition_for_code(code).get("drops", []) as Array
 
 
+func available_in_phase(code: int, phase_id: StringName) -> bool:
+	var phases := definition_for_code(code).get("available_phases", []) as Array
+	return phases.is_empty() or phases.has(String(phase_id))
+
+
 func tool_ids() -> Array[StringName]:
 	var result: Array[StringName] = []
 	for definition in _tools:
@@ -205,6 +210,10 @@ func _load_config() -> void:
 			var item_id := String(drop.get("item_id", ""))
 			if not _item_catalog.has_item(StringName(item_id)) or int(drop.get("minimum", 0)) < 1 or int(drop.get("maximum", 0)) < int(drop.get("minimum", 0)):
 				_fail("Resource '%s' has an invalid drop rule" % resource_id)
+				return
+		for phase_value in definition.get("available_phases", []) as Array:
+			if not ["DAWN", "DAY", "DUSK", "NIGHT"].has(String(phase_value)):
+				_fail("Resource '%s' has an invalid availability phase" % resource_id)
 				return
 		_resources.append(definition)
 		_resources_by_id[resource_id] = definition

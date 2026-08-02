@@ -1,5 +1,20 @@
 # Development Log
 
+## V1.1.0 - Complete day/night and lighting
+
+- Replaced the 300-second two-state prototype with a validated external four-phase, 1,200-second cycle.
+- Added smooth phase-edge color blending, persistent phase/day HUD state and a screen-space torch light that follows the player.
+- Added phase-aware enemy candidates, a 27-enemy night cap and night-only moonflowers dropping moonpetals.
+- Preserved save format 6 and generation format 4: time already persists as seconds and existing resource coordinates/keys are unchanged.
+- Replaced runtime biome-rule Dictionary reads with typed scalar `BiomeRule` instances after repeated stress runs reproduced Godot COW memory corruption.
+- Captured and visually reviewed dawn, day, dusk, night and torch-at-night frames using Godot 4.7.1.
+
+### Decisions
+
+- The existing stable `flower` resource code is presented as a moonflower and gated by phase, so V1.0.1 resource keys and collected-state compatibility remain intact.
+- Offline elapsed time is intentionally ignored; loading resumes the exact saved world time.
+- Texture filtering remains nearest; lighting is applied by a canvas shader without blurring world pixels.
+
 ## V1.0.0 - First complete playable build
 
 - Added a basic 300-second day/night clock driven by persisted world time and a presentation-only night overlay.

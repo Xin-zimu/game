@@ -38,6 +38,7 @@ var _peak_cache := 0
 var _peak_memory_mb := 0.0
 var _metrics_elapsed := 0.0
 var _prompt_elapsed := 0.0
+var _time_phase: StringName = &"DAWN"
 
 
 func configure(world_seed: int, player: PlayerCharacter, initial_chunk: ChunkData = null) -> void:
@@ -54,6 +55,7 @@ func _ready() -> void:
 		set_process(false)
 		return
 	_tool_ids = _resource_catalog.tool_ids()
+	EventBus.time_state_changed.connect(_on_time_state_changed)
 	_crafting_system = CraftingSystem.new(_harvest_state.inventory_model())
 	_restore_pending_persistence()
 	_drop_pool = WorldDropPool.new()
@@ -148,6 +150,12 @@ func active_tool_id() -> StringName:
 		return &"hands"
 	var kind := _item_catalog.tool_kind(StringName(value["item_id"]))
 	return kind if not kind.is_empty() else &"hands"
+
+
+func selected_item_id() -> StringName:
+	var inventory := _harvest_state.inventory_model()
+	var value := inventory.slot(inventory.selected_hotbar_slot())
+	return StringName(value.get("item_id", "")) if not value.is_empty() else &""
 
 
 func active_tool_power() -> int:
@@ -289,6 +297,8 @@ func nearest_resource(radius_pixels: float) -> Dictionary:
 		if chunk == null:
 			continue
 		for index in chunk.resource_count():
+			if not _resource_catalog.available_in_phase(chunk.resource_code_at(index), _time_phase):
+				continue
 			var resource_key := chunk.resource_key_at(index)
 			if _harvest_state.collected_resources.has(resource_key):
 				continue
@@ -306,6 +316,11 @@ func nearest_resource(radius_pixels: float) -> Dictionary:
 				"distance_squared": distance_squared,
 			}
 	return best
+
+
+func _on_time_state_changed(snapshot: Dictionary) -> void:
+	_time_phase = StringName(snapshot.get("phase", &"DAWN"))
+	_update_resource_prompt()
 
 
 func harvest_state() -> ResourceHarvestState:

@@ -16,9 +16,10 @@ func _init(world_seed: int, catalog := EnemyCatalog.new()) -> void:
 	_resource_generator = ResourceGenerator.new(world_seed)
 
 
-func candidates_for_chunk(chunk_position: Vector2i) -> Array[Dictionary]:
-	if _cache.has(chunk_position):
-		return (_cache[chunk_position] as Array).duplicate(true)
+func candidates_for_chunk(chunk_position: Vector2i, phase_id: StringName = &"") -> Array[Dictionary]:
+	var cache_key := "%d:%d:%s" % [chunk_position.x, chunk_position.y, phase_id]
+	if _cache.has(cache_key):
+		return (_cache[cache_key] as Array).duplicate(true)
 	var result: Array[Dictionary] = []
 	var occupied_tiles := {}
 	for slot in _catalog.candidate_slots_per_chunk():
@@ -34,7 +35,7 @@ func candidates_for_chunk(chunk_position: Vector2i) -> Array[Dictionary]:
 			continue
 		var biome_id := _biome_catalog.id_for_code(_terrain_generator.biome_at(world_tile))
 		var enemy_roll := float((stable_hash >> 48) & 0xffff) / 65536.0
-		var enemy_id := _catalog.enemy_id_for_biome(biome_id, enemy_roll)
+		var enemy_id := _catalog.enemy_id_for_biome_phase(biome_id, enemy_roll, phase_id)
 		if enemy_id.is_empty():
 			continue
 		occupied_tiles[world_tile] = true
@@ -48,7 +49,7 @@ func candidates_for_chunk(chunk_position: Vector2i) -> Array[Dictionary]:
 		})
 		if result.size() >= _catalog.maximum_per_chunk():
 			break
-	_cache[chunk_position] = result.duplicate(true)
+	_cache[cache_key] = result.duplicate(true)
 	return result
 
 
@@ -57,9 +58,14 @@ func cache_size() -> int:
 
 
 func retain_chunks(coordinates: Array[Vector2i]) -> void:
-	var keep := {}
+	var keep_prefixes: Array[String] = []
 	for coordinate in coordinates:
-		keep[coordinate] = true
+		keep_prefixes.append("%d:%d:" % [coordinate.x, coordinate.y])
 	for coordinate_value in _cache.keys():
-		if not keep.has(coordinate_value):
+		var keep := false
+		for prefix in keep_prefixes:
+			if String(coordinate_value).begins_with(prefix):
+				keep = true
+				break
+		if not keep:
 			_cache.erase(coordinate_value)

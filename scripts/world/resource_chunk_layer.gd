@@ -10,6 +10,8 @@ var _chunk: ChunkData
 var _collected_resources: Dictionary = {}
 var _key_to_index: Dictionary = {}
 var _hit_deadlines: Dictionary = {}
+var _phase_id: StringName = &"NIGHT"
+var _catalog := ResourceCatalog.new()
 
 
 func _ready() -> void:
@@ -17,6 +19,7 @@ func _ready() -> void:
 	_ensure_shared_tile_set()
 	tile_set = _shared_tile_set
 	set_process(false)
+	EventBus.time_state_changed.connect(_on_time_state_changed)
 
 
 func apply_chunk(chunk: ChunkData, collected_resources: Dictionary) -> void:
@@ -35,6 +38,8 @@ func refresh_all() -> void:
 	for index in _chunk.resource_count():
 		var key := _chunk.resource_key_at(index)
 		if _collected_resources.has(key):
+			continue
+		if not _catalog.available_in_phase(_chunk.resource_code_at(index), _phase_id):
 			continue
 		set_cell(_chunk.resource_local_at(index), _shared_source_id, Vector2i(_chunk.resource_code_at(index), 0), 0)
 
@@ -70,6 +75,14 @@ func _process(_delta: float) -> void:
 		set_cell(_chunk.resource_local_at(index), _shared_source_id, Vector2i(_chunk.resource_code_at(index), 0), 0)
 	if _hit_deadlines.is_empty():
 		set_process(false)
+
+
+func _on_time_state_changed(snapshot: Dictionary) -> void:
+	var next_phase := StringName(snapshot.get("phase", &"DAWN"))
+	if next_phase == _phase_id:
+		return
+	_phase_id = next_phase
+	refresh_all()
 
 
 static func _ensure_shared_tile_set() -> void:

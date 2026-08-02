@@ -31,6 +31,7 @@ REQUIRED_PATHS = (
     "scripts/player/player_motor.gd",
     "scripts/generation/world_seed.gd",
     "scripts/generation/biome_catalog.gd",
+    "scripts/generation/biome_rule.gd",
     "scripts/generation/resource_catalog.gd",
     "scripts/generation/resource_generator.gd",
     "scripts/generation/terrain_generator.gd",
@@ -70,6 +71,7 @@ REQUIRED_PATHS = (
     "data/weapons.json",
     "data/enemies.json",
     "data/milestones.json",
+    "data/time_cycle.json",
     "scripts/world/world_coordinates.gd",
     "scripts/world/chunk_data.gd",
     "scripts/world/chunk_renderer.gd",
@@ -111,8 +113,8 @@ def main() -> int:
             failures.append(f"autoload not registered: {autoload}")
 
     version_text = (ROOT / "scripts/core/game_version.gd").read_text(encoding="utf-8")
-    if 'const VERSION := "1.0.1"' not in version_text:
-        failures.append("game version is not 1.0.1")
+    if 'const VERSION := "1.1.0"' not in version_text:
+        failures.append("game version is not 1.1.0")
 
     if "const SAVE_VERSION := 6" not in version_text:
         failures.append("save version is not 6")

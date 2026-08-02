@@ -1,17 +1,17 @@
 # Architecture
 
-Infinite Frontier uses a layered, data-oriented Godot architecture. This document records the first complete playable foundation through V1.0.0 and will evolve with every version.
+Infinite Frontier uses a layered, data-oriented Godot architecture. This document records the playable foundation through V1.1.0 and will evolve with every version.
 
 ## Runtime layers
 
-| Layer | Responsibility | Components through V1.0.0 |
+| Layer | Responsibility | Components through V1.1.0 |
 |---|---|---|
 | Core | Application lifecycle, settings, logging, events | `GameManager`, `SettingsManager`, `SaveManager`, `LogManager`, `EventBus` |
 | Presentation | Scenes, menus and debug UI | `main_menu.gd`, `world_sandbox.gd`, `GameplayHud`, `CombatHud`, `EnemyHud`, `MilestoneHud`, `DayNightOverlay`, `GenerationHud`, `ResourceHud`, `InventoryPanel`, `CraftingPanel`, `DebugPanel` |
 | Gameplay | Player, interaction, combat and progression | `PlayerCharacter`, `PlayerMotor`, `PlayerVisual`, `PixelCamera`, `ResourceHarvestState`, `InventoryModel`, `CraftingSystem`, `PlayerCombatController`, `PlayerCombatState`, `GraveModel`, `EnemyBase`, `EnemyStateMachine`, `EnemyDirector`, `DayNightCycle`, `MilestoneState`, `RuinEncounter`, `RuinGuardian` |
 | World | Coordinates, chunk data, persistence and streaming | `WorldCoordinates`, `ChunkData`, `ChunkStreamPlanner`, `ChunkGenerationJob`, `ChunkStreamManager`, `ChunkRenderer`, `ResourceChunkLayer`, `WorldDropPool`, `SaveWriteJob` |
-| Generation | Pure deterministic world data | `WorldSeed`, `BiomeCatalog`, `ResourceCatalog`, `ResourceGenerator`, `TerrainGenerator`, `RuinPlanner` |
-| Data | Stable IDs and data-driven content | `data/biomes.json`, `data/resources.json`, `data/items.json`, `data/recipes.json`, `data/weapons.json`, `data/enemies.json`, `data/milestones.json`, catalog and definition resources |
+| Generation | Pure deterministic world data | `WorldSeed`, `BiomeCatalog`, `BiomeRule`, `ResourceCatalog`, `ResourceGenerator`, `TerrainGenerator`, `RuinPlanner` |
+| Data | Stable IDs and data-driven content | `data/biomes.json`, `data/resources.json`, `data/items.json`, `data/recipes.json`, `data/weapons.json`, `data/enemies.json`, `data/milestones.json`, `data/time_cycle.json`, catalog and definition resources |
 
 ## Architectural rules
 

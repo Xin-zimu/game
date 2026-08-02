@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "cycle_seconds": 1200.0,
+  "phases": [
+    {"id": "DAWN", "display_name": "黎明", "duration_seconds": 60.0, "overlay": "38284f33", "ambient_energy": 0.72},
+    {"id": "DAY", "display_name": "白天", "duration_seconds": 720.0, "overlay": "fff2c200", "ambient_energy": 1.0},
+    {"id": "DUSK", "display_name": "黄昏", "duration_seconds": 120.0, "overlay": "8a3f454f", "ambient_energy": 0.62},
+    {"id": "NIGHT", "display_name": "夜晚", "duration_seconds": 300.0, "overlay": "07152b9e", "ambient_energy": 0.28}
+  ]
+}

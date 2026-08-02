@@ -36,6 +36,8 @@ func _process(delta: float) -> void:
 	if _day_night_cycle != null:
 		var time_state := _day_night_cycle.advance(delta)
 		_day_night_overlay.apply_time(time_state)
+		if _stream_manager != null:
+			_day_night_overlay.set_torch_enabled(_stream_manager.selected_item_id() == &"torch")
 		EventBus.time_state_changed.emit(time_state)
 	if not SaveManager.has_current_world():
 		return
@@ -121,6 +123,7 @@ func _build_world() -> void:
 	add_child(lighting_canvas)
 	_day_night_overlay = DayNightOverlay.new()
 	lighting_canvas.add_child(_day_night_overlay)
+	_day_night_overlay.configure_player(_player)
 	_day_night_overlay.apply_time(_day_night_cycle.snapshot())
 	var canvas := CanvasLayer.new()
 	canvas.layer = 20

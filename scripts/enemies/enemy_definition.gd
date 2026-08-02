@@ -7,6 +7,7 @@ extends Resource
 @export var color := Color.WHITE
 @export var biomes: Array[StringName] = []
 @export var spawn_weight := 0.0
+@export var spawn_phases: Array[StringName] = []
 @export var maximum_health := 1.0
 @export var defense := 0.0
 @export var move_speed := 1.0
@@ -31,6 +32,9 @@ func configure(value: Dictionary) -> void:
 	for biome_value in value.get("biomes", []) as Array:
 		biomes.append(StringName(biome_value))
 	spawn_weight = float(value.get("spawn_weight", 0.0))
+	spawn_phases.clear()
+	for phase_value in value.get("spawn_phases", []) as Array:
+		spawn_phases.append(StringName(phase_value))
 	maximum_health = float(value.get("maximum_health", 1.0))
 	defense = float(value.get("defense", 0.0))
 	move_speed = float(value.get("move_speed", 1.0))
@@ -46,3 +50,7 @@ func configure(value: Dictionary) -> void:
 	drops.clear()
 	for drop_value in value.get("drops", []) as Array:
 		drops.append((drop_value as Dictionary).duplicate(true))
+
+
+func is_available_in_phase(phase_id: StringName) -> bool:
+	return spawn_phases.is_empty() or spawn_phases.has(phase_id)

@@ -51,6 +51,11 @@ func maximum_active() -> int:
 	return int(population_value("maximum_active", 1))
 
 
+func maximum_active_for_phase(phase_id: StringName) -> int:
+	var multiplier := float(population_value("night_population_multiplier", 1.0)) if phase_id == &"NIGHT" else 1.0
+	return maxi(1, int(round(maximum_active() * multiplier)))
+
+
 func maximum_per_chunk() -> int:
 	return int(population_value("maximum_per_chunk", 1))
 
@@ -64,10 +69,14 @@ func spawn_chance() -> float:
 
 
 func enemy_id_for_biome(biome_id: StringName, roll: float) -> StringName:
+	return enemy_id_for_biome_phase(biome_id, roll, &"")
+
+
+func enemy_id_for_biome_phase(biome_id: StringName, roll: float, phase_id: StringName) -> StringName:
 	var candidates: Array[EnemyDefinition] = []
 	var total := 0.0
 	for definition in _enemies:
-		if definition.biomes.has(biome_id):
+		if definition.biomes.has(biome_id) and (phase_id.is_empty() or definition.is_available_in_phase(phase_id)):
 			candidates.append(definition)
 			total += definition.spawn_weight
 	if candidates.is_empty() or total <= 0.0:
@@ -142,6 +151,14 @@ func _load_config() -> void:
 		for biome_value in biomes:
 			if not _biome_catalog.has_biome(StringName(biome_value)):
 				_fail("敌人 %s 引用了未知群系 %s" % [enemy_id, biome_value])
+				return
+		var phases := raw.get("spawn_phases", []) as Array
+		if phases.is_empty():
+			_fail("敌人必须至少绑定一个昼夜阶段：%s" % enemy_id)
+			return
+		for phase_value in phases:
+			if not ["DAWN", "DAY", "DUSK", "NIGHT"].has(String(phase_value)):
+				_fail("敌人 %s 引用了未知昼夜阶段 %s" % [enemy_id, phase_value])
 				return
 		for numeric_key in ["spawn_weight", "maximum_health", "move_speed", "detection_range", "disengage_range", "attack_range", "attack_power", "attack_cooldown", "attack_windup", "attack_recovery", "return_distance"]:
 			if float(raw.get(numeric_key, 0.0)) <= 0.0:

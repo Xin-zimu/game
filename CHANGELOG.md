@@ -2,6 +2,26 @@
 
 All notable changes are recorded here. Version numbers follow the staged project plan.
 
+## [1.1.0] - 2026-08-03
+
+### Added
+
+- Configurable dawn, day, dusk and night phases totaling a 20-minute game day.
+- Smooth environment-color transitions and player-following torch illumination.
+- Phase-aware enemy selection, a data-driven 1.5× night population cap and nocturnal cave-bat activity.
+- Night-only moonflowers with a stable moonpetal inventory item.
+- Automated coverage and actual GPU evidence for all four phases and torch lighting.
+
+### Changed
+
+- Biome rules are compiled from JSON into thread-safe typed scalar objects before generation begins.
+- Game version advances to 1.1.0; save format remains 6 and generation format remains 4.
+
+### Fixed
+
+- Eliminated intermittent native Godot crashes caused by shared mutable biome-rule dictionaries during repeated generation tests.
+- Night-only resources cannot be seen or interacted with outside their configured phase.
+
 ## [1.0.1] - 2026-08-02
 
 ### Added

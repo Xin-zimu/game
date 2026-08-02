@@ -10,7 +10,8 @@
     "despawn_distance_pixels": 1700.0,
     "logic_sleep_distance_pixels": 920.0,
     "respawn_cooldown_seconds": 18.0,
-    "population_tick_seconds": 0.45
+    "population_tick_seconds": 0.45,
+    "night_population_multiplier": 1.5
   },
   "enemies": [
     {
@@ -20,6 +21,7 @@
       "color": "67b779",
       "biomes": ["plains", "forest"],
       "spawn_weight": 1.0,
+      "spawn_phases": ["DAWN", "DAY", "DUSK"],
       "maximum_health": 38.0,
       "defense": 1.0,
       "move_speed": 48.0,
@@ -43,6 +45,7 @@
       "color": "9b8d80",
       "biomes": ["forest", "snowfield"],
       "spawn_weight": 0.8,
+      "spawn_phases": ["DAWN", "DAY", "DUSK", "NIGHT"],
       "maximum_health": 52.0,
       "defense": 2.0,
       "move_speed": 82.0,
@@ -67,6 +70,7 @@
       "color": "7f6aa8",
       "biomes": ["mountain"],
       "spawn_weight": 1.0,
+      "spawn_phases": ["DUSK", "NIGHT"],
       "maximum_health": 30.0,
       "defense": 0.0,
       "move_speed": 70.0,
