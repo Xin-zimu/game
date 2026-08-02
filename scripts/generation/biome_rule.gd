@@ -31,14 +31,22 @@ func configure(definition: Dictionary) -> void:
 	erosion_max = float(conditions.get("erosion_max", INF))
 
 
-func matches(temperature: float, moisture: float, elevation: float, erosion: float) -> bool:
+func matches(temperature_value: Variant, moisture_value: Variant, elevation_value: Variant, erosion_value: Variant) -> bool:
+	var temperature := float(temperature_value)
+	var moisture := float(moisture_value)
+	var elevation := float(elevation_value)
+	var erosion := float(erosion_value)
 	return temperature >= temperature_min and temperature <= temperature_max \
 		and moisture >= moisture_min and moisture <= moisture_max \
 		and elevation >= elevation_min and elevation <= elevation_max \
 		and erosion >= erosion_min and erosion <= erosion_max
 
 
-func distance_to_edge(temperature: float, moisture: float, elevation: float, erosion: float) -> float:
+func distance_to_edge(temperature_value: Variant, moisture_value: Variant, elevation_value: Variant, erosion_value: Variant) -> float:
+	var temperature := float(temperature_value)
+	var moisture := float(moisture_value)
+	var elevation := float(elevation_value)
+	var erosion := float(erosion_value)
 	var distance := INF
 	distance = minf(distance, minf(temperature - temperature_min, temperature_max - temperature))
 	distance = minf(distance, minf(moisture - moisture_min, moisture_max - moisture))

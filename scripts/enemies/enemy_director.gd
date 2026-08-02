@@ -11,6 +11,7 @@ var _cooldowns: Dictionary = {}
 var _population_elapsed := 0.0
 var _spawn_cursor := 0
 var _time_phase: StringName = &"DAWN"
+var _weather_population_multiplier := 1.0
 
 
 func configure(world_seed: int, player: PlayerCharacter, drop_pool: WorldDropPool) -> void:
@@ -28,6 +29,7 @@ func _ready() -> void:
 		set_process(false)
 		return
 	EventBus.time_state_changed.connect(_on_time_state_changed)
+	EventBus.weather_state_changed.connect(_on_weather_state_changed)
 	population_step()
 
 
@@ -66,7 +68,7 @@ func sleeping_count() -> int:
 
 
 func maximum_active() -> int:
-	return _catalog.maximum_active_for_phase(_time_phase)
+	return maxi(1, roundi(float(_catalog.maximum_active_for_phase(_time_phase)) * _weather_population_multiplier))
 
 
 func active_snapshots() -> Array[Dictionary]:
@@ -191,3 +193,7 @@ func _emit_metrics() -> void:
 func _on_time_state_changed(snapshot: Dictionary) -> void:
 	_time_phase = StringName(snapshot.get("phase", &"DAWN"))
 	population_step()
+
+
+func _on_weather_state_changed(snapshot: Dictionary) -> void:
+	_weather_population_multiplier = clampf(float(snapshot.get("enemy_population_multiplier", 1.0)), 0.25, 3.0)

@@ -2,6 +2,26 @@
 
 All notable changes are recorded here. Version numbers follow the staged project plan.
 
+## [1.2.0] - 2026-08-03
+
+### Added
+
+- Data-driven clear, rain, snow and sandstorm weather with biome-specific regional weights.
+- Smooth tint/particle transitions and fully offline synthesized weather ambience.
+- Weather modifiers for resolved resource yield and active enemy population.
+- Exact weather-state persistence plus explicit save-format-2-through-6 migration coverage.
+
+### Changed
+
+- Game version advances to 1.2.0 and save format advances to 7; generation format remains 4.
+- Terrain and biome numeric boundaries use runtime-safe conversions for Godot 4.7.1.
+
+### Fixed
+
+- Ordinary saves no longer erase an existing weather snapshot when the caller omits an unchanged state.
+- Weather audio streams stop and release cleanly during scene shutdown.
+- The weather test probe is explicitly freed, eliminating the new ObjectDB leak.
+
 ## [1.1.0] - 2026-08-03
 
 ### Added

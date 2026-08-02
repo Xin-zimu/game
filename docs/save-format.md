@@ -2,19 +2,20 @@
 
 ## Version
 
-- Game version: `1.1.0`
-- Save version: `6`
+- Game version: `1.2.0`
+- Save version: `7`
 - Generation version: `4`
 - Inventory schema: `2`
 - Crafting-state schema: `1`
 - Combat-state schema: `1`
 - Grave-state schema: `1`
 - Milestone-state schema: `1`
+- Weather-state schema: `1`
 - Storage root: `user://saves`
 
-Save and generation formats are independent. Save version 6 adds ordered ruin/Boss/reward progression without changing deterministic terrain bytes. Active enemies and Boss motion remain session state, while picked-up drops use inventory schema 2. Versions 2, 3, 4 and 5 are accepted only by the documented migration paths; any other save version or a mismatched generation version is rejected with a file-specific error.
+Save and generation formats are independent. Save version 7 adds exact regional weather state without changing deterministic terrain bytes. Active enemies and Boss motion remain session state, while picked-up drops use inventory schema 2. Versions 2 through 6 are accepted only by the documented migration paths; any other save version or a mismatched generation version is rejected with a file-specific error.
 
-V1.1.0 does not change either format. `game_time_seconds` already stores exact accumulated world time; loading resumes from that value and deliberately does not add offline elapsed time. Moonflowers reuse stable resource code 3 and existing resource keys, while the added `moonpetal` item is backward-compatible with inventory schema 2.
+V1.2.0 preserves generation format 4. Weather resumes from the saved region, segment, duration and transition timers and deliberately does not add offline elapsed time. Formats 2–6 receive a deterministic initial weather snapshot during migration.
 
 ## Directory layout
 
@@ -41,9 +42,9 @@ The directory ID is local and collision-resistant; the player-facing name remain
 
 ```json
 {
-  "save_version": 6,
+  "save_version": 7,
   "generation_version": 4,
-  "game_version": "1.0.0",
+  "game_version": "1.2.0",
   "world_id": "world_123456789",
   "world_name": "无尽边境",
   "seed_text": "无尽边境",
@@ -51,6 +52,16 @@ The directory ID is local and collision-resistant; the player-facing name remain
   "created_at": "2026-08-02T14:00:00",
   "last_played_at": "2026-08-02T14:30:00",
   "game_time_seconds": 1800.0,
+  "weather_state": {
+    "schema_version": 1,
+    "current_id": "RAIN",
+    "target_id": "CLEAR",
+    "region": [-1, -1],
+    "segment": 2,
+    "weather_elapsed": 42.5,
+    "weather_duration": 126.0,
+    "transition_elapsed": 3.0
+  },
   "player_layer": "surface"
 }
 ```
@@ -63,7 +74,7 @@ The 64-bit seed is stored together with its original text so the UI can reproduc
 
 ```json
 {
-  "save_version": 6,
+  "save_version": 7,
   "position": [-2048.5, 1024.25],
   "health": 73.0,
   "maximum_health": 100.0,
@@ -155,9 +166,9 @@ Manual saves copy the existing metadata, player document and difference files in
 
 ## Corruption behavior
 
-Loading validates readable JSON objects, save version 6 or migratable version 2/3/4/5, exact generation version, required metadata, player position/attributes, all inventory slots, durability bounds, crafting discoveries, combat status, every grave inventory, milestone ordering and difference arrays. Parse failures include the filename, parser line and message. The Continue action leaves the player on the menu and displays `SaveManager.last_error`; it never silently starts a new world over damaged data.
+Loading validates readable JSON objects, save version 7 or migratable version 2–6, exact generation version, required metadata, weather state, player position/attributes, all inventory slots, durability bounds, crafting discoveries, combat status, every grave inventory, milestone ordering and difference arrays. Parse failures include the filename, parser line and message. The Continue action leaves the player on the menu and displays `SaveManager.last_error`; it never silently starts a new world over damaged data.
 
-## Format-2 through format-5 migration
+## Format-2 through format-6 migration
 
 V0.7 format-2 player documents stored `inventory` as an item-to-count dictionary. V0.10 validates the legacy fields, feeds those counts through canonical stack limits into a 24-slot inventory, assigns no invented tools and initializes crafting discoveries from the restored material slots.
 
@@ -167,4 +178,6 @@ V0.9 format-4 documents already contain inventory schema 2 and crafting-state sc
 
 V0.10/V0.11 format-5 documents already contain combat-state and grave-state schema 1. V1.0 preserves them exactly and initializes a valid incomplete milestone state. The player can then discover the seed-derived ruin normally.
 
-All paths update metadata, player state and chunk-difference documents in memory to save format 6 and transactionally commit format 6 on the next save. Migration never changes generation format or recreates unmodified chunks.
+V1.0/V1.1 format-6 documents already contain milestone-state schema 1. V1.2 preserves all existing state and initializes deterministic clear weather at the saved world's seed; subsequent weather selection uses the player's region and biome.
+
+All paths update metadata and player state in memory to save format 7 and transactionally commit format 7 on the next save. Migration never changes generation format or recreates unmodified chunks.

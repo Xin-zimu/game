@@ -2,7 +2,7 @@ extends Node
 
 const SAVE_ROOT := "user://saves"
 const DEFAULT_START_CHUNK := Vector2i(-1, -4)
-const SUPPORTED_SAVE_VERSIONS := [2, 3, 4, 5, 6]
+const SUPPORTED_SAVE_VERSIONS := [2, 3, 4, 5, 6, 7]
 const SUPPORTED_GENERATION_VERSIONS := [4]
 
 var last_error := ""
@@ -70,6 +70,7 @@ func create_world(world_name: String, seed_text: String) -> bool:
 		"created_at": timestamp,
 		"last_played_at": timestamp,
 		"game_time_seconds": 0.0,
+		"weather_state": WeatherSystem.new(seed).persistence_snapshot(),
 		"player_layer": "surface",
 	}
 	_player_snapshot = {
@@ -180,6 +181,12 @@ func load_world(world_id: String) -> bool:
 		player["grave_state"] = GraveModel.new().persistence_snapshot()
 	if loaded_save_version < 6:
 		player["milestone_state"] = MilestoneState.new().persistence_snapshot()
+	if loaded_save_version < 7:
+		metadata["weather_state"] = WeatherSystem.new(int(metadata.get("seed", 0))).persistence_snapshot()
+	var normalized_weather := WeatherSystem.new(int(metadata.get("seed", 0)))
+	if not normalized_weather.restore_snapshot(metadata.get("weather_state", {}) as Dictionary):
+		return _fail("天气存档状态无效")
+	metadata["weather_state"] = normalized_weather.persistence_snapshot()
 	if loaded_save_version < GameVersion.SAVE_VERSION:
 		player["save_version"] = GameVersion.SAVE_VERSION
 		metadata["save_version"] = GameVersion.SAVE_VERSION
@@ -219,7 +226,7 @@ func load_world(world_id: String) -> bool:
 	return true
 
 
-func request_save(player: Dictionary, world_state: Dictionary, game_time_seconds: float, create_backup := false) -> bool:
+func request_save(player: Dictionary, world_state: Dictionary, game_time_seconds: float, create_backup := false, weather_state := {}) -> bool:
 	if _current_world_id.is_empty():
 		return false
 	var request := {
@@ -227,6 +234,7 @@ func request_save(player: Dictionary, world_state: Dictionary, game_time_seconds
 		"world_state": world_state.duplicate(true),
 		"game_time_seconds": game_time_seconds,
 		"create_backup": create_backup,
+		"weather_state": (weather_state as Dictionary).duplicate(true),
 	}
 	if _save_task_id >= 0:
 		_queued_request = request
@@ -274,6 +282,10 @@ func current_game_time_seconds() -> float:
 	return float(_metadata.get("game_time_seconds", 0.0))
 
 
+func current_weather_state() -> Dictionary:
+	return (_metadata.get("weather_state", {}) as Dictionary).duplicate(true)
+
+
 func loaded_player_snapshot() -> Dictionary:
 	return _player_snapshot.duplicate(true)
 
@@ -306,6 +318,11 @@ func _start_save(request: Dictionary) -> void:
 	player["milestone_state"] = (world_state.get("milestone_state", {}) as Dictionary).duplicate(true)
 	_metadata["last_played_at"] = Time.get_datetime_string_from_system(false, true)
 	_metadata["game_time_seconds"] = float(request["game_time_seconds"])
+	var requested_weather := request.get("weather_state", {}) as Dictionary
+	if not requested_weather.is_empty():
+		_metadata["weather_state"] = requested_weather.duplicate(true)
+	elif not _metadata.has("weather_state"):
+		_metadata["weather_state"] = WeatherSystem.new(current_seed()).persistence_snapshot()
 	_metadata["game_version"] = GameVersion.VERSION
 	var chunk_differences := _group_chunk_differences(world_state.get("collected_resources", []) as Array)
 	var snapshot := {
@@ -414,6 +431,13 @@ func _validate_metadata(metadata: Dictionary) -> String:
 	for key in ["world_id", "world_name", "seed_text", "seed", "created_at", "last_played_at"]:
 		if not metadata.has(key) or str(metadata[key]).is_empty():
 			return "世界元数据缺少 %s" % key
+	if int(metadata.get("save_version", 0)) >= 7:
+		var weather_value: Variant = metadata.get("weather_state", {})
+		if not weather_value is Dictionary:
+			return "天气存档状态必须是对象"
+		var weather := WeatherSystem.new(int(metadata.get("seed", 0)))
+		if not weather.restore_snapshot(weather_value as Dictionary):
+			return "天气存档状态无效"
 	return ""
 
 

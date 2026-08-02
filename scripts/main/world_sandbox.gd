@@ -17,6 +17,8 @@ var _autosave_elapsed := 0.0
 var _exit_save_requested := false
 var _day_night_cycle: DayNightCycle
 var _day_night_overlay: DayNightOverlay
+var _weather_system: WeatherSystem
+var _weather_overlay: WeatherOverlay
 
 
 func _ready() -> void:
@@ -39,6 +41,14 @@ func _process(delta: float) -> void:
 		if _stream_manager != null:
 			_day_night_overlay.set_torch_enabled(_stream_manager.selected_item_id() == &"torch")
 		EventBus.time_state_changed.emit(time_state)
+	if _weather_system != null and _weather_overlay != null and _player != null and _stream_manager != null:
+		var weather_state := _weather_system.update(
+			delta,
+			WorldCoordinates.world_pixel_to_tile(_player.global_position),
+			_stream_manager.current_biome_id()
+		)
+		_weather_overlay.apply_weather(weather_state)
+		EventBus.weather_state_changed.emit(weather_state)
 	if not SaveManager.has_current_world():
 		return
 	_autosave_elapsed += delta
@@ -125,6 +135,8 @@ func _build_world() -> void:
 	lighting_canvas.add_child(_day_night_overlay)
 	_day_night_overlay.configure_player(_player)
 	_day_night_overlay.apply_time(_day_night_cycle.snapshot())
+	_weather_overlay = WeatherOverlay.new()
+	lighting_canvas.add_child(_weather_overlay)
 	var canvas := CanvasLayer.new()
 	canvas.layer = 20
 	add_child(canvas)
@@ -139,6 +151,7 @@ func _build_world() -> void:
 	canvas.add_child(DebugPanel.new())
 	_stream_manager = ChunkStreamManager.new()
 	_stream_manager.configure(_world_seed, _player, initial_chunk)
+	_weather_system = WeatherSystem.new(_world_seed, SaveManager.current_weather_state() if SaveManager.has_current_world() else {})
 	if SaveManager.has_current_world():
 		_stream_manager.restore_persistence(SaveManager.loaded_world_state_snapshot())
 	_stream_manager.metrics_changed.connect(_generation_hud.update_streaming)
@@ -166,7 +179,8 @@ func _request_save(create_backup: bool) -> void:
 		_player.persistence_snapshot(),
 		_stream_manager.persistence_snapshot(),
 		_game_time_seconds,
-		create_backup
+		create_backup,
+		_weather_system.persistence_snapshot() if _weather_system != null else {}
 	)
 
 

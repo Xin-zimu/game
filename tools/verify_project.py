@@ -113,11 +113,11 @@ def main() -> int:
             failures.append(f"autoload not registered: {autoload}")
 
     version_text = (ROOT / "scripts/core/game_version.gd").read_text(encoding="utf-8")
-    if 'const VERSION := "1.1.0"' not in version_text:
-        failures.append("game version is not 1.1.0")
+    if 'const VERSION := "1.2.0"' not in version_text:
+        failures.append("game version is not 1.2.0")
 
-    if "const SAVE_VERSION := 6" not in version_text:
-        failures.append("save version is not 6")
+    if "const SAVE_VERSION := 7" not in version_text:
+        failures.append("save version is not 7")
 
     if "const GENERATION_VERSION := 4" not in version_text:
         failures.append("generation version is not 4")

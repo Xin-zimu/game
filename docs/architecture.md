@@ -1,17 +1,17 @@
 # Architecture
 
-Infinite Frontier uses a layered, data-oriented Godot architecture. This document records the playable foundation through V1.1.0 and will evolve with every version.
+Infinite Frontier uses a layered, data-oriented Godot architecture. This document records the playable foundation through V1.2.0 and will evolve with every version.
 
 ## Runtime layers
 
-| Layer | Responsibility | Components through V1.1.0 |
+| Layer | Responsibility | Components through V1.2.0 |
 |---|---|---|
 | Core | Application lifecycle, settings, logging, events | `GameManager`, `SettingsManager`, `SaveManager`, `LogManager`, `EventBus` |
-| Presentation | Scenes, menus and debug UI | `main_menu.gd`, `world_sandbox.gd`, `GameplayHud`, `CombatHud`, `EnemyHud`, `MilestoneHud`, `DayNightOverlay`, `GenerationHud`, `ResourceHud`, `InventoryPanel`, `CraftingPanel`, `DebugPanel` |
-| Gameplay | Player, interaction, combat and progression | `PlayerCharacter`, `PlayerMotor`, `PlayerVisual`, `PixelCamera`, `ResourceHarvestState`, `InventoryModel`, `CraftingSystem`, `PlayerCombatController`, `PlayerCombatState`, `GraveModel`, `EnemyBase`, `EnemyStateMachine`, `EnemyDirector`, `DayNightCycle`, `MilestoneState`, `RuinEncounter`, `RuinGuardian` |
+| Presentation | Scenes, menus and debug UI | `main_menu.gd`, `world_sandbox.gd`, `GameplayHud`, `CombatHud`, `EnemyHud`, `MilestoneHud`, `DayNightOverlay`, `WeatherOverlay`, `GenerationHud`, `ResourceHud`, `InventoryPanel`, `CraftingPanel`, `DebugPanel` |
+| Gameplay | Player, interaction, combat and progression | `PlayerCharacter`, `PlayerMotor`, `PlayerVisual`, `PixelCamera`, `ResourceHarvestState`, `InventoryModel`, `CraftingSystem`, `PlayerCombatController`, `PlayerCombatState`, `GraveModel`, `EnemyBase`, `EnemyStateMachine`, `EnemyDirector`, `DayNightCycle`, `WeatherSystem`, `MilestoneState`, `RuinEncounter`, `RuinGuardian` |
 | World | Coordinates, chunk data, persistence and streaming | `WorldCoordinates`, `ChunkData`, `ChunkStreamPlanner`, `ChunkGenerationJob`, `ChunkStreamManager`, `ChunkRenderer`, `ResourceChunkLayer`, `WorldDropPool`, `SaveWriteJob` |
 | Generation | Pure deterministic world data | `WorldSeed`, `BiomeCatalog`, `BiomeRule`, `ResourceCatalog`, `ResourceGenerator`, `TerrainGenerator`, `RuinPlanner` |
-| Data | Stable IDs and data-driven content | `data/biomes.json`, `data/resources.json`, `data/items.json`, `data/recipes.json`, `data/weapons.json`, `data/enemies.json`, `data/milestones.json`, `data/time_cycle.json`, catalog and definition resources |
+| Data | Stable IDs and data-driven content | `data/biomes.json`, `data/resources.json`, `data/items.json`, `data/recipes.json`, `data/weapons.json`, `data/enemies.json`, `data/milestones.json`, `data/time_cycle.json`, `data/weather.json`, catalog and definition resources |
 
 ## Architectural rules
 
@@ -95,19 +95,21 @@ Each craft clones the complete inventory, deducts inputs and adds output on that
 
 ## Persistence ownership
 
+`WeatherCatalog` validates the four stable weather IDs, transition/duration bounds, particle/audio presentation and biome weights. `WeatherSystem` derives a deterministic weather segment from world seed, 6×6-chunk region, segment and current biome, then exposes one immutable blended snapshot. `WeatherOverlay`, `AudioCuePlayer`, `ChunkStreamManager` and `EnemyDirector` consume that snapshot without owning weather selection. Weather remains a runtime overlay, so generation-format-4 bytes and collected-resource keys do not change.
+
 `SaveManager` is an autoload because it must survive scene changes and join outstanding file tasks at shutdown. It owns world selection, schema validation, immutable save snapshots and last-error state. It never asks `PlayerCharacter` to write a file: the player and resource systems expose plain dictionaries, and `world_sandbox.gd` orchestrates the save request.
 
 `SaveWriteJob` receives a deep-copied snapshot and performs JSON transaction writes and backup copies on `WorkerThreadPool`. It owns no nodes and calls no UI or gameplay APIs. Completion returns duration, difference-file count and an actionable error; `SaveManager` publishes that result on the main thread.
 
 World metadata, player attributes and generated-world differences are separate documents. Collected resource keys are grouped by mathematical chunk coordinate. Only groups with at least one permanent change are written, so visiting or unloading an unmodified chunk cannot create a save file. See `docs/save-format.md` for the normative schema.
 
-Save format 6 adds milestone state to the format-5 combat/grave data. Format-2 count dictionaries, format-3 inventory-schema-1 documents, format-4 crafting documents and format-5 combat/grave documents are accepted only by explicit migration paths and are committed as format 6 on the next save. Generation stays at format 4 because the canonical ruin is a separate deterministic overlay and does not alter terrain, biome, resource or checksum bytes.
+Save format 7 adds weather state to format-6 milestone data. Formats 2–6 are accepted only by explicit migration paths and are committed as format 7 on the next save. Generation stays at format 4 because both the canonical ruin and regional weather are deterministic overlays that do not alter terrain, biome, resource or checksum bytes.
 
 V0.11 enemies are runtime challenge entities rather than permanent world differences. Their base candidates, active AI state and respawn cooldowns are intentionally not serialized. Canonical enemy-drop items become normal inventory entries when picked up and are therefore persisted by the unchanged inventory schema 2.
 
 ## Adventure-loop ownership
 
-`DayNightCycle` is a scene-free time model driven by the already persisted `game_time_seconds`. V1.0 deliberately exposes only basic day/night phases; the richer dawn/dusk lighting and time-driven ecology remain V1.1 scope. `DayNightOverlay` and `MilestoneHud` consume event snapshots and own no time or progression rules.
+`DayNightCycle` and `WeatherSystem` are scene-free environment models driven by persisted seconds and weather-state fields. `DayNightOverlay`, `WeatherOverlay` and `MilestoneHud` consume event snapshots and own no selection, timing or progression rules.
 
 `MilestoneCatalog` validates ruin search limits, guardian combat values and the canonical reward item. `RuinPlanner` samples a bounded chunk ring using only seed-derived ranks and pure terrain queries, yielding exactly one stable land landmark. The landmark remains outside `ChunkData`, preserving every generation-v4 fixture.
 

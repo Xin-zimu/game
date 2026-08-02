@@ -27,6 +27,7 @@ func _ready() -> void:
 	_test_enemy_catalog_and_state_machine()
 	_test_enemy_spawn_planner()
 	_test_milestone_models()
+	_test_weather_models()
 	_test_deterministic_generation()
 	_test_biome_regions()
 	_test_resource_generation()
@@ -60,11 +61,12 @@ func _test_project_resources() -> void:
 	_assert_true(ResourceLoader.exists("res://data/weapons.json"), "weapon catalog exists")
 	_assert_true(ResourceLoader.exists("res://data/enemies.json"), "enemy catalog exists")
 	_assert_true(ResourceLoader.exists("res://data/milestones.json"), "milestone catalog exists")
+	_assert_true(ResourceLoader.exists("res://data/weather.json"), "weather catalog exists")
 
 
 func _test_version_contract() -> void:
-	_assert_equal(GameVersion.VERSION, "1.1.0", "version constant")
-	_assert_equal(GameVersion.SAVE_VERSION, 6, "V1.0 milestone progression advances save format 6")
+	_assert_equal(GameVersion.VERSION, "1.2.0", "version constant")
+	_assert_equal(GameVersion.SAVE_VERSION, 7, "V1.2 weather persistence advances save format 7")
 	_assert_equal(GameVersion.GENERATION_VERSION, 4, "V1.0 landmark overlay preserves generation version 4")
 
 
@@ -82,6 +84,7 @@ func _test_event_bus_contract() -> void:
 	_assert_true(EventBus.has_signal("grave_state_changed"), "grave state signal exists")
 	_assert_true(EventBus.has_signal("enemy_state_changed"), "enemy population signal exists")
 	_assert_true(EventBus.has_signal("time_state_changed"), "time-cycle signal exists")
+	_assert_true(EventBus.has_signal("weather_state_changed"), "weather-state signal exists")
 	_assert_true(EventBus.has_signal("milestone_state_changed"), "milestone progression signal exists")
 	_assert_true(EventBus.has_signal("save_status_changed"), "save status signal exists")
 
@@ -495,6 +498,40 @@ func _test_milestone_models() -> void:
 	_assert_true(tone.data.size() > 100 and tone.mix_rate == AudioCuePlayer.SAMPLE_RATE, "procedural basic sound cue contains valid PCM samples")
 
 
+func _test_weather_models() -> void:
+	var catalog := WeatherCatalog.new()
+	_assert_true(catalog.is_valid(), "external weather configuration loads and validates")
+	var ids: Array[StringName] = []
+	for definition in catalog.definitions():
+		ids.append(definition.weather_id)
+	_assert_equal(ids, [&"CLEAR", &"RAIN", &"SNOW", &"SANDSTORM"], "clear, rain, snow and sandstorm are data-driven")
+	_assert_true(catalog.definition(&"SNOW").weight_for_biome(&"snowfield") > 0.0 and catalog.definition(&"SNOW").weight_for_biome(&"desert") == 0.0, "snow is restricted to reasonable cold regions")
+	_assert_true(catalog.definition(&"SANDSTORM").weight_for_biome(&"desert") > 0.0 and catalog.definition(&"SANDSTORM").weight_for_biome(&"snowfield") == 0.0, "sandstorms are restricted to desert regions")
+	var seed := WorldSeed.from_text("weather-fixture")
+	var first := WeatherSystem.new(seed)
+	var second := WeatherSystem.new(seed)
+	var tile := Vector2i(80, -40)
+	var first_snapshot := first.update(0.0, tile, &"forest")
+	var second_snapshot := second.update(0.0, tile, &"forest")
+	_assert_equal(first_snapshot["weather_id"], second_snapshot["weather_id"], "same seed, region, segment and biome select the same weather")
+	_assert_equal(first_snapshot["region"], second_snapshot["region"], "regional weather coordinates are deterministic")
+	first.force_weather(&"CLEAR")
+	_assert_true(first.transition_to(&"RAIN"), "valid weather begins a smooth transition")
+	var transitioning := first.update(catalog.transition_seconds() * 0.5, tile, &"forest")
+	_assert_true(float(transitioning["transition_progress"]) > 0.0 and float(transitioning["transition_progress"]) < 1.0, "weather transition exposes a non-instant intermediate blend")
+	var persisted := first.persistence_snapshot()
+	var restored := WeatherSystem.new(seed, persisted)
+	_assert_equal(restored.persistence_snapshot(), persisted, "weather state round trips exactly without offline progress")
+	first.force_weather(&"RAIN")
+	var rain := first.snapshot()
+	_assert_true(float(rain["resource_yield_multiplier"]) > 1.0 and float(rain["enemy_population_multiplier"]) > 1.0, "rain affects both resources and enemy population")
+	var quantity_probe := ChunkStreamManager.new()
+	quantity_probe._on_weather_state_changed(rain)
+	_assert_equal(quantity_probe.adjusted_resource_quantity(4), 5, "rain resource multiplier changes resolved harvest yield")
+	quantity_probe.free()
+	_assert_true(AudioCuePlayer.synthesize_ambience(float(rain["ambient_frequency"]), &"RAIN").data.size() > 0, "weather ambience is generated fully offline")
+
+
 func _test_deterministic_generation() -> void:
 	var seed := WorldSeed.from_text("无尽边境")
 	var first_generator := TerrainGenerator.new(seed)
@@ -670,7 +707,7 @@ func _test_save_system() -> void:
 	var root := SaveManager.current_world_root_absolute()
 	_assert_true(FileAccess.file_exists(root.path_join("world.json")) and FileAccess.file_exists(root.path_join("player.json")), "new world contains metadata and player documents")
 	var metadata := _read_json_for_test(root.path_join("world.json"))
-	_assert_equal(int(metadata.get("save_version", 0)), 6, "world metadata records save format 6")
+	_assert_equal(int(metadata.get("save_version", 0)), 7, "world metadata records save format 7")
 	_assert_equal(int(metadata.get("generation_version", 0)), 4, "world metadata records generation format 4")
 	_assert_equal(String(metadata.get("world_name", "")), "自动测试边境", "world metadata preserves the world name")
 	_assert_equal(String(metadata.get("seed_text", "")), "存档种子-070", "world metadata preserves the text seed")
@@ -724,6 +761,9 @@ func _test_save_system() -> void:
 	changed_milestones.defeat_boss()
 	changed_milestones.claim_reward()
 	var changed_milestone_snapshot := changed_milestones.persistence_snapshot()
+	var saved_weather_system := WeatherSystem.new(int(metadata["seed"]))
+	saved_weather_system.force_weather(&"SNOW")
+	var changed_weather_snapshot := saved_weather_system.persistence_snapshot()
 	var changed_state := {
 		"collected_resources": removed_keys,
 		"inventory": changed_inventory_snapshot,
@@ -733,7 +773,7 @@ func _test_save_system() -> void:
 		"active_tool": "axe",
 	}
 	var dispatch_started := Time.get_ticks_usec()
-	_assert_true(SaveManager.request_save(player, changed_state, 42.5, false), "changed world dispatches an autosave")
+	_assert_true(SaveManager.request_save(player, changed_state, 42.5, false, changed_weather_snapshot), "changed world dispatches an autosave")
 	var dispatch_ms := float(Time.get_ticks_usec() - dispatch_started) / 1000.0
 	_assert_true(dispatch_ms < 50.0, "autosave snapshot dispatch does not block the main thread")
 	SaveManager.flush_pending_save()
@@ -758,6 +798,7 @@ func _test_save_system() -> void:
 	_assert_equal(restored_world_state["crafting_state"], changed_crafting_snapshot, "V0.9 recipe discoveries restore identically")
 	_assert_equal(restored_world_state["grave_state"], changed_grave_snapshot, "V0.10 grave position, contents and durability restore identically")
 	_assert_equal(restored_world_state["milestone_state"], changed_milestone_snapshot, "V1.0 ruin, Boss and reward progression restore identically")
+	_assert_equal(SaveManager.current_weather_state(), changed_weather_snapshot, "V1.2 weather state restores exactly")
 	_assert_equal(String(restored_world_state["active_tool"]), "axe", "active tool restores with player attributes")
 	var restored_harvest := ResourceHarvestState.new()
 	_assert_true(restored_harvest.restore_snapshot(restored_removed, restored_world_state["inventory"]), "restored inventory snapshot passes schema validation")
@@ -785,10 +826,10 @@ func _test_save_system() -> void:
 	var migrated_inventory := InventoryModel.new()
 	_assert_true(migrated_inventory.restore_snapshot(migrated_state["inventory"] as Dictionary), "migrated legacy counts produce a valid slot inventory")
 	_assert_true(migrated_inventory.quantity(&"wood") == 7 and migrated_inventory.quantity(&"stone") == 3, "save migration preserves legacy item totals exactly")
-	_assert_true(SaveManager.request_save(SaveManager.loaded_player_snapshot(), migrated_state, 45.0, false), "migrated world can be committed as save format 6")
+	_assert_true(SaveManager.request_save(SaveManager.loaded_player_snapshot(), migrated_state, 45.0, false), "migrated world can be committed as save format 7")
 	SaveManager.flush_pending_save()
-	_assert_equal(int(_read_json_for_test(root.path_join("world.json")).get("save_version", 0)), 6, "next save commits V0.7 world metadata as format 6")
-	_assert_equal(int(_read_json_for_test(root.path_join("player.json")).get("save_version", 0)), 6, "next save commits V0.7 player inventory as format 6")
+	_assert_equal(int(_read_json_for_test(root.path_join("world.json")).get("save_version", 0)), 7, "next save commits V0.7 world metadata as format 7")
+	_assert_equal(int(_read_json_for_test(root.path_join("player.json")).get("save_version", 0)), 7, "next save commits V0.7 player inventory as format 7")
 	var v08_metadata := _read_json_for_test(root.path_join("world.json"))
 	v08_metadata["save_version"] = 3
 	var v08_player := _read_json_for_test(root.path_join("player.json"))
@@ -803,8 +844,8 @@ func _test_save_system() -> void:
 			v08_difference["save_version"] = 3
 			_write_json_for_test(chunks_path.path_join(filename), v08_difference)
 	SaveManager.clear_current_world()
-	_assert_true(SaveManager.load_world(world_id), "V0.8 save format 3 migrates to milestone-capable format 6")
-	_assert_equal(int(SaveManager.loaded_player_snapshot().get("save_version", 0)), 6, "V0.8 migration normalizes player save version in memory")
+	_assert_true(SaveManager.load_world(world_id), "V0.8 save format 3 migrates to weather-capable format 7")
+	_assert_equal(int(SaveManager.loaded_player_snapshot().get("save_version", 0)), 7, "V0.8 migration normalizes player save version in memory")
 	_assert_equal(int((SaveManager.loaded_world_state_snapshot()["inventory"] as Dictionary).get("schema_version", 0)), 2, "V0.8 inventory schema upgrades from 1 to 2")
 	_assert_true((SaveManager.loaded_world_state_snapshot()["crafting_state"] as Dictionary).has("discovered_items"), "V0.8 migration initializes crafting discovery state")
 	_assert_true((SaveManager.loaded_player_snapshot()["combat_state"] as Dictionary).has("respawn_position") and (SaveManager.loaded_world_state_snapshot()["grave_state"] as Dictionary).has("graves"), "V0.8 migration initializes combat and grave state")
@@ -823,7 +864,7 @@ func _test_save_system() -> void:
 			v09_difference["save_version"] = 4
 			_write_json_for_test(chunks_path.path_join(filename), v09_difference)
 	SaveManager.clear_current_world()
-	_assert_true(SaveManager.load_world(world_id), "V0.9 save format 4 migrates to milestone-capable format 6")
+	_assert_true(SaveManager.load_world(world_id), "V0.9 save format 4 migrates to weather-capable format 7")
 	_assert_equal(SaveManager.loaded_world_state_snapshot()["crafting_state"], v09_crafting_snapshot, "V0.9 migration preserves the exact crafting-state object")
 	_assert_true((SaveManager.loaded_player_snapshot()["combat_state"] as Dictionary).has("death_count") and (SaveManager.loaded_world_state_snapshot()["grave_state"] as Dictionary).has("next_id"), "V0.9 migration initializes combat status and an empty grave list")
 	_assert_true((SaveManager.loaded_world_state_snapshot()["milestone_state"] as Dictionary).has("ruin_discovered"), "legacy migration initializes incomplete V1.0 milestone state")
@@ -840,9 +881,23 @@ func _test_save_system() -> void:
 			v010_difference["save_version"] = 5
 			_write_json_for_test(chunks_path.path_join(filename), v010_difference)
 	SaveManager.clear_current_world()
-	_assert_true(SaveManager.load_world(world_id), "V0.10/V0.11 save format 5 migrates to V1.0 format 6")
+	_assert_true(SaveManager.load_world(world_id), "V0.10/V0.11 save format 5 migrates to V1.2 format 7")
 	var migrated_milestone := SaveManager.loaded_world_state_snapshot()["milestone_state"] as Dictionary
 	_assert_true(not bool(migrated_milestone["ruin_discovered"]) and not bool(migrated_milestone["boss_defeated"]), "format-5 migration starts the new milestone incomplete")
+	_assert_true((SaveManager.current_weather_state() as Dictionary).has("current_id"), "legacy migration initializes deterministic clear weather state")
+	_assert_true(SaveManager.request_save(SaveManager.loaded_player_snapshot(), SaveManager.loaded_world_state_snapshot(), 46.0, false), "legacy milestone save can be normalized before V1.1 migration coverage")
+	SaveManager.flush_pending_save()
+	var v110_metadata := _read_json_for_test(root.path_join("world.json"))
+	v110_metadata["save_version"] = 6
+	v110_metadata.erase("weather_state")
+	var v110_player := _read_json_for_test(root.path_join("player.json"))
+	v110_player["save_version"] = 6
+	_write_json_for_test(root.path_join("world.json"), v110_metadata)
+	_write_json_for_test(root.path_join("player.json"), v110_player)
+	SaveManager.clear_current_world()
+	_assert_true(SaveManager.load_world(world_id), "V1.0/V1.1 save format 6 migrates to weather-capable format 7")
+	_assert_equal(int(SaveManager.loaded_player_snapshot().get("save_version", 0)), 7, "format-6 migration normalizes the player save version")
+	_assert_true((SaveManager.current_weather_state() as Dictionary).has("target_id"), "format-6 migration initializes a valid regional weather state")
 	var corrupt_file := FileAccess.open(root.path_join("world.json"), FileAccess.WRITE)
 	corrupt_file.store_string("{broken save")
 	corrupt_file.flush()
@@ -1297,6 +1352,8 @@ func _test_enemy_runtime_and_hud() -> void:
 	for _step in 24:
 		director.population_step()
 	_assert_true(director.active_count() > 0 and director.active_count() <= director.maximum_active(), "repeated population updates never exceed the active-enemy hard cap")
+	director._on_weather_state_changed({"enemy_population_multiplier": 1.2})
+	_assert_equal(director.maximum_active(), 22, "weather multiplier changes the runtime enemy population cap")
 	var all_offscreen := true
 	var spawn_minimum_held := true
 	for snapshot in director.active_snapshots():
@@ -1331,6 +1388,8 @@ func _test_adventure_runtime_and_hud() -> void:
 	add_child(hud)
 	var overlay := DayNightOverlay.new()
 	add_child(overlay)
+	var weather_overlay := WeatherOverlay.new()
+	add_child(weather_overlay)
 	var audio := AudioCuePlayer.new()
 	add_child(audio)
 	await get_tree().process_frame
@@ -1376,10 +1435,21 @@ func _test_adventure_runtime_and_hud() -> void:
 	EventBus.time_state_changed.emit(night_snapshot)
 	await get_tree().process_frame
 	_assert_equal(night_resource_layer.visible_resource_count(), 1, "moonflower appears during the night phase")
+	var weather_probe := WeatherSystem.new(WorldSeed.from_text("weather-runtime"))
+	weather_probe.force_weather(&"RAIN")
+	var rain_snapshot := weather_probe.snapshot()
+	weather_overlay.apply_weather(rain_snapshot)
+	EventBus.weather_state_changed.emit(rain_snapshot)
+	await get_tree().process_frame
+	var weather_label := hud.find_child("WeatherLabel", true, false) as Label
+	_assert_true(weather_overlay.particle_style() == &"rain" and weather_overlay.particle_count() > 0, "rain presentation renders data-driven screen particles")
+	_assert_true(weather_label != null and "降雨" in weather_label.text, "weather HUD reflects the active weather")
+	_assert_equal(audio.ambient_weather, &"RAIN", "weather event switches the procedural ambient audio")
 	_assert_true(audio.played_cues > 0 or audio.play_cue(&"success"), "combat and milestone events drive a playable basic sound cue")
 	encounter.queue_free()
 	hud.queue_free()
 	overlay.queue_free()
+	weather_overlay.queue_free()
 	night_resource_layer.queue_free()
 	audio.queue_free()
 	player.queue_free()

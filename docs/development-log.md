@@ -1,5 +1,21 @@
 # Development Log
 
+## V1.2.0 - Regional weather
+
+- Added validated weather definitions for clear skies, rain, snow and sandstorms with ecological biome weights.
+- Added deterministic 6×6-chunk weather regions, bounded durations and smooth eight-second transitions.
+- Added screen-space rain/snow/sand presentation and deterministic offline synthesized ambience.
+- Applied weather multipliers only at canonical resource-drop resolution and enemy population-cap calculation.
+- Advanced save format to 7 with exact current/target/region/segment/timer persistence and format-2-through-6 migration.
+- Added HUD weather status, runtime integration checks and visual evidence for all four weather states.
+
+### Decisions
+
+- Weather is a regional runtime layer and does not modify generation-format-4 terrain or resource keys.
+- Save loading does not simulate offline weather progress; it resumes the exact saved transition state.
+- Weather audio is synthesized locally and releases its playback stream during scene shutdown.
+- Numeric boundaries crossing packed Godot values are explicitly normalized to avoid Godot 4.7.1 runtime type instability.
+
 ## V1.1.0 - Complete day/night and lighting
 
 - Replaced the 300-second two-state prototype with a validated external four-phase, 1,200-second cycle.

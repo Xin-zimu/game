@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "region_size_chunks": 6,
+  "transition_seconds": 8.0,
+  "minimum_duration_seconds": 90.0,
+  "maximum_duration_seconds": 180.0,
+  "weather": [
+    {
+      "id": "CLEAR", "display_name": "晴天", "tint": "ffffff00",
+      "particle_style": "none", "particle_color": "ffffff00", "particle_count": 0, "particle_speed": 0.0,
+      "ambient_frequency": 0.0, "enemy_population_multiplier": 1.0, "resource_yield_multiplier": 1.0,
+      "biome_weights": {"deep_ocean": 0.65, "ocean": 0.65, "coast": 0.55, "plains": 0.55, "forest": 0.45, "desert": 0.35, "snowfield": 0.35, "swamp": 0.35, "mountain": 0.55}
+    },
+    {
+      "id": "RAIN", "display_name": "降雨", "tint": "49637a3d",
+      "particle_style": "rain", "particle_color": "9ecbf0c8", "particle_count": 96, "particle_speed": 330.0,
+      "ambient_frequency": 185.0, "enemy_population_multiplier": 1.1, "resource_yield_multiplier": 1.25,
+      "biome_weights": {"deep_ocean": 0.35, "ocean": 0.35, "coast": 0.45, "plains": 0.45, "forest": 0.55, "swamp": 0.65}
+    },
+    {
+      "id": "SNOW", "display_name": "降雪", "tint": "d8ecf02e",
+      "particle_style": "snow", "particle_color": "f4fbffff", "particle_count": 72, "particle_speed": 58.0,
+      "ambient_frequency": 95.0, "enemy_population_multiplier": 0.8, "resource_yield_multiplier": 0.85,
+      "biome_weights": {"snowfield": 0.65, "mountain": 0.20}
+    },
+    {
+      "id": "SANDSTORM", "display_name": "沙尘", "tint": "b878354f",
+      "particle_style": "sand", "particle_color": "e0b66fc0", "particle_count": 110, "particle_speed": 210.0,
+      "ambient_frequency": 72.0, "enemy_population_multiplier": 1.2, "resource_yield_multiplier": 0.75,
+      "biome_weights": {"desert": 0.65}
+    }
+  ]
+}

@@ -10,6 +10,7 @@ func _capture() -> void:
 	var requested_size := Vector2i(1280, 720)
 	var fullscreen := false
 	var requested_phase: StringName = &""
+	var requested_weather: StringName = &""
 	var torch_enabled := false
 	var phase_snapshot: Dictionary = {}
 	for argument in OS.get_cmdline_user_args():
@@ -23,6 +24,8 @@ func _capture() -> void:
 			fullscreen = true
 		elif argument.begins_with("--evidence-phase="):
 			requested_phase = StringName(argument.trim_prefix("--evidence-phase=").to_upper())
+		elif argument.begins_with("--evidence-weather="):
+			requested_weather = StringName(argument.trim_prefix("--evidence-weather=").to_upper())
 		elif argument == "--evidence-torch":
 			torch_enabled = true
 	if output_path.is_empty() or requested_size.x < 1280 or requested_size.y < 720:
@@ -57,6 +60,19 @@ func _capture() -> void:
 		if not phase_snapshot.is_empty():
 			event_bus.emit_signal("time_state_changed", phase_snapshot)
 		event_bus.emit_signal("resource_prompt_changed", "[E] 采集树木 · 耐久 3")
+	if not requested_weather.is_empty():
+		scene.set_process(false)
+		var weather_system := WeatherSystem.new(WorldSeed.from_text("v1.2-evidence"))
+		if not weather_system.force_weather(requested_weather):
+			printerr("Unknown evidence weather: %s" % requested_weather)
+			quit(6)
+			return
+		var weather_snapshot := weather_system.snapshot()
+		var weather_overlay := scene.find_child("WeatherOverlay", true, false) as WeatherOverlay
+		if weather_overlay != null:
+			weather_overlay.apply_weather(weather_snapshot)
+		if event_bus != null:
+			event_bus.emit_signal("weather_state_changed", weather_snapshot)
 	await process_frame
 	RenderingServer.force_draw(false)
 	await process_frame

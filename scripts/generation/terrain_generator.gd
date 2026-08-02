@@ -79,14 +79,14 @@ func elevation_at(world_tile: Vector2i) -> float:
 	return clampf(continental * 0.50 + elevation * 0.32 + (1.0 - erosion) * 0.10 + detail * 0.08, 0.0, 1.0)
 
 
-func temperature_at(world_tile: Vector2i, elevation := -1.0) -> float:
+func temperature_at(world_tile: Vector2i, elevation: float = -1.0) -> float:
 	var resolved_elevation := elevation if elevation >= 0.0 else elevation_at(world_tile)
 	var base_temperature := _normalized_noise(_temperature_noise, world_tile)
 	var altitude_cooling := maxf(resolved_elevation - 0.56, 0.0) * 0.72
 	return clampf(base_temperature - altitude_cooling, 0.0, 1.0)
 
 
-func moisture_at(world_tile: Vector2i, continental := -1.0) -> float:
+func moisture_at(world_tile: Vector2i, continental: float = -1.0) -> float:
 	var resolved_continental := continental if continental >= 0.0 else continental_at(world_tile)
 	var base_moisture := _normalized_noise(_moisture_noise, world_tile)
 	var ocean_influence := maxf(0.48 - resolved_continental, 0.0) * 0.28

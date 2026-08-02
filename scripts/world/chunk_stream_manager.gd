@@ -39,6 +39,7 @@ var _peak_memory_mb := 0.0
 var _metrics_elapsed := 0.0
 var _prompt_elapsed := 0.0
 var _time_phase: StringName = &"DAWN"
+var _weather_resource_multiplier := 1.0
 
 
 func configure(world_seed: int, player: PlayerCharacter, initial_chunk: ChunkData = null) -> void:
@@ -56,6 +57,7 @@ func _ready() -> void:
 		return
 	_tool_ids = _resource_catalog.tool_ids()
 	EventBus.time_state_changed.connect(_on_time_state_changed)
+	EventBus.weather_state_changed.connect(_on_weather_state_changed)
 	_crafting_system = CraftingSystem.new(_harvest_state.inventory_model())
 	_restore_pending_persistence()
 	_drop_pool = WorldDropPool.new()
@@ -275,7 +277,8 @@ func interact_with_nearest_resource() -> void:
 	for drop_value in result["drops"] as Array:
 		var drop := drop_value as Dictionary
 		var offset := Vector2((drop_index - 1) * 12, 5 + posmod(drop_index, 2) * 6)
-		if not _drop_pool.spawn_drop(drop["item_id"] as StringName, int(drop["quantity"]), drop_position + offset):
+		var weather_quantity := adjusted_resource_quantity(int(drop["quantity"]))
+		if not _drop_pool.spawn_drop(drop["item_id"] as StringName, weather_quantity, drop_position + offset):
 			LogManager.warning("ResourceInteraction", "Drop pool full; unable to spawn %s" % drop["item_id"])
 		drop_index += 1
 	var destroyed_message := "%s已采集，掉落物将自动拾取" % _resource_catalog.display_name_for_code(resource_code)
@@ -321,6 +324,22 @@ func nearest_resource(radius_pixels: float) -> Dictionary:
 func _on_time_state_changed(snapshot: Dictionary) -> void:
 	_time_phase = StringName(snapshot.get("phase", &"DAWN"))
 	_update_resource_prompt()
+
+
+func _on_weather_state_changed(snapshot: Dictionary) -> void:
+	_weather_resource_multiplier = clampf(float(snapshot.get("resource_yield_multiplier", 1.0)), 0.25, 3.0)
+
+
+func adjusted_resource_quantity(base_quantity: int) -> int:
+	return maxi(1, roundi(float(base_quantity) * _weather_resource_multiplier))
+
+
+func current_biome_id() -> StringName:
+	var current_data := _cache.get(_current_chunk) as ChunkData
+	if current_data == null or _player == null:
+		return &"plains"
+	var local := WorldCoordinates.tile_to_local(WorldCoordinates.world_pixel_to_tile(_player.global_position))
+	return _catalog.id_for_code(current_data.biome_at(local))
 
 
 func harvest_state() -> ResourceHarvestState:
