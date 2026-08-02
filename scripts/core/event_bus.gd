@@ -21,6 +21,7 @@ signal attack_started(attack: Dictionary)
 signal combat_status_changed(status: Dictionary)
 signal combat_feedback(message: String, successful: bool)
 signal grave_state_changed(state: Dictionary)
+signal enemy_state_changed(state: Dictionary)
 signal save_status_changed(message: String, successful: bool)
 
 

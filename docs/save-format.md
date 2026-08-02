@@ -2,7 +2,7 @@
 
 ## Version
 
-- Game version: `0.10.0`
+- Game version: `0.11.0`
 - Save version: `5`
 - Generation version: `4`
 - Inventory schema: `2`
@@ -11,7 +11,7 @@
 - Grave-state schema: `1`
 - Storage root: `user://saves`
 
-Save and generation formats are independent. Save version 5 adds player combat status and persistent graves without changing deterministic world generation. Versions 2, 3 and 4 are accepted only by the documented migration paths; any other save version or a mismatched generation version is rejected with a file-specific error.
+Save and generation formats are independent. Save version 5 adds player combat status and persistent graves without changing deterministic world generation. V0.11 runtime enemies require no schema change: active AI and cooldowns are session state, while picked-up enemy drops use inventory schema 2. Versions 2, 3 and 4 are accepted only by the documented migration paths; any other save version or a mismatched generation version is rejected with a file-specific error.
 
 ## Directory layout
 
@@ -40,7 +40,7 @@ The directory ID is local and collision-resistant; the player-facing name remain
 {
   "save_version": 5,
   "generation_version": 4,
-  "game_version": "0.10.0",
+  "game_version": "0.11.0",
   "world_id": "world_123456789",
   "world_name": "无尽边境",
   "seed_text": "无尽边境",

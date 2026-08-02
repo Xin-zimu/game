@@ -25,6 +25,7 @@ var _crafting_system: CraftingSystem
 var _grave_model := GraveModel.new()
 var _grave_markers: Dictionary = {}
 var _drop_pool: WorldDropPool
+var _enemy_director: EnemyDirector
 var _pending_persistence: Dictionary = {}
 var _view_mode := ChunkRenderer.ViewMode.TERRAIN
 var _show_boundaries := true
@@ -55,6 +56,9 @@ func _ready() -> void:
 	_drop_pool = WorldDropPool.new()
 	_drop_pool.configure(_resource_catalog.drop_pool_capacity(), _resource_catalog)
 	add_child(_drop_pool)
+	_enemy_director = EnemyDirector.new()
+	_enemy_director.configure(_world_seed, _player, _drop_pool)
+	add_child(_enemy_director)
 	_refresh_grave_markers()
 	_refresh_targets()
 	_emit_metrics()
@@ -294,6 +298,10 @@ func harvest_state() -> ResourceHarvestState:
 	return _harvest_state
 
 
+func enemy_director() -> EnemyDirector:
+	return _enemy_director
+
+
 func restore_persistence(snapshot: Dictionary) -> void:
 	_pending_persistence = snapshot.duplicate(true)
 	if is_inside_tree() and not _tool_ids.is_empty():
@@ -427,6 +435,8 @@ func metrics_snapshot() -> Dictionary:
 		"active_resources": active_resources,
 		"collected_resources": _harvest_state.collected_resources.size(),
 		"active_drops": _drop_pool.active_count() if _drop_pool != null else 0,
+		"active_enemies": _enemy_director.active_count() if _enemy_director != null else 0,
+		"sleeping_enemies": _enemy_director.sleeping_count() if _enemy_director != null else 0,
 		"drop_pool_capacity": _resource_catalog.drop_pool_capacity(),
 		"active_tool": active_tool_id(),
 	}

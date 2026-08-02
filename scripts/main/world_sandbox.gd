@@ -26,7 +26,7 @@ func _ready() -> void:
 		_world_seed = SaveManager.current_seed()
 		_game_time_seconds = SaveManager.current_game_time_seconds()
 	_build_world()
-	LogManager.info("WorldSandbox", "V0.10.0 combat-enabled world ready: %s" % (SaveManager.current_world_name() if SaveManager.has_current_world() else "temporary"))
+	LogManager.info("WorldSandbox", "V0.11.0 enemy-enabled world ready: %s" % (SaveManager.current_world_name() if SaveManager.has_current_world() else "temporary"))
 
 
 func _process(delta: float) -> void:
@@ -113,6 +113,7 @@ func _build_world() -> void:
 	add_child(canvas)
 	canvas.add_child(GameplayHud.new())
 	canvas.add_child(CombatHud.new())
+	canvas.add_child(EnemyHud.new())
 	canvas.add_child(ResourceHud.new())
 	_generation_hud = GenerationHud.new()
 	canvas.add_child(_generation_hud)

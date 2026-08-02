@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <defs>
+    <style>
+      text { font-family: "Noto Sans CJK SC"; fill: #e5ebdf; font-size: 16px; }
+      .small { font-size: 13px; fill: #bac7b8; }
+      .title { font-size: 20px; fill: #f2d06b; font-weight: 700; }
+      .panel { fill: #101b18; stroke: #71877a; stroke-width: 3; }
+      .green { fill: #8dd47e; }
+      .gold { fill: #f2d06b; }
+      .coral { fill: #ef8a72; }
+      .state { fill: #1d3028; stroke: #7aa58b; stroke-width: 2; }
+    </style>
+    <linearGradient id="ground" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#18382a"/><stop offset="1" stop-color="#3c6a43"/></linearGradient>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0L8 4L0 8Z" fill="#b8c9bd"/></marker>
+  </defs>
+  <rect width="1280" height="720" fill="url(#ground)"/>
+  <path d="M0 125L180 75L390 132L610 66L840 145L1050 73L1280 119V365L1080 300L865 369L650 281L420 351L197 273L0 337Z" fill="#285039"/>
+  <circle cx="110" cy="220" r="62" fill="#3a714d"/><circle cx="1180" cy="252" r="76" fill="#52654d"/>
+
+  <rect x="22" y="18" width="474" height="54" rx="9" class="panel"/>
+  <text x="42" y="51">生命 88/100 · 石剑 69/80 · 山地边缘</text>
+  <rect x="938" y="18" width="319" height="143" rx="9" fill="#18151a" stroke="#ca725f" stroke-width="4"/>
+  <text x="958" y="50" class="title">敌人监控 · 7/18</text>
+  <text x="958" y="79" class="small">史莱姆 3 · 狼 2 · 洞穴蝙蝠 2</text>
+  <text x="958" y="106" class="small">追击 2 · 攻击 1 · 游荡 4</text>
+  <text x="958" y="134" class="small">休眠 ≥920px · 移除 ≥1700px</text>
+
+  <text x="248" y="195" class="small">玩家攻击 · attack_id=12</text>
+  <path d="M277 223l16 15 7 35-10 53h-29l-10-53 8-35z" fill="#40705d" stroke="#9ee2bc" stroke-width="4"/>
+  <path d="M289 270h74" stroke="#e5e6dc" stroke-width="8"/><path d="M290 270h19" stroke="#81513a" stroke-width="8"/>
+  <path d="M368 232q51 38 0 79" fill="none" stroke="#f2d06b" stroke-width="7"/>
+  <path d="M414 271h45" stroke="#ef8a72" stroke-width="5" marker-end="url(#arrow)"/>
+
+  <text x="463" y="193" class="gold">史莱姆 · ATTACK</text>
+  <ellipse cx="520" cy="274" rx="55" ry="44" fill="#79c96c" stroke="#c8f0a9" stroke-width="4"/>
+  <circle cx="501" cy="264" r="6" fill="#16251c"/><circle cx="538" cy="264" r="6" fill="#16251c"/>
+  <path d="M499 291q20 12 40 0" fill="none" stroke="#315737" stroke-width="4"/>
+  <rect x="464" y="324" width="112" height="9" rx="5" fill="#28322d"/><rect x="464" y="324" width="68" height="9" rx="5" fill="#da6858"/>
+  <text x="470" y="354" class="small">掉落 slime_gel</text>
+
+  <text x="704" y="193" class="gold">狼 · CHASE</text>
+  <path d="M723 252l21-29 14 25 52 4 28 39-22 24h-88l-22-31z" fill="#87959a" stroke="#d2dcdf" stroke-width="4"/>
+  <circle cx="807" cy="272" r="5" fill="#e8bc56"/><path d="M735 311v31M796 311v31" stroke="#d2dcdf" stroke-width="8"/>
+  <rect x="862" y="207" width="35" height="157" fill="#5b5147" stroke="#b0a08d" stroke-width="4"/>
+  <path d="M817 276h35" stroke="#ef8a72" stroke-width="5" marker-end="url(#arrow)"/>
+  <path d="M820 296q8 31 37 39" fill="none" stroke="#8dd47e" stroke-width="4" marker-end="url(#arrow)"/>
+  <text x="698" y="367" class="small">世界碰撞阻挡 · 切线绕行</text>
+
+  <text x="1010" y="194" class="gold">洞穴蝙蝠 · WANDER</text>
+  <path d="M1096 244q-43-31-72 15 34-5 49 31l23-14 23 14q15-36 49-31-29-46-72-15z" fill="#8a719e" stroke="#dac7ea" stroke-width="4"/>
+  <circle cx="1086" cy="260" r="4" fill="#f2d06b"/><circle cx="1106" cy="260" r="4" fill="#f2d06b"/>
+  <text x="1010" y="323" class="small">山地表层规则</text><text x="1010" y="348" class="small">掉落 bat_wing</text>
+
+  <rect x="22" y="406" width="856" height="184" rx="11" class="panel"/>
+  <text x="44" y="439" class="title">八状态敌人状态机</text>
+  <g>
+    <rect x="45" y="463" width="91" height="40" rx="8" class="state"/><text x="69" y="489">IDLE</text>
+    <path d="M136 483h29" stroke="#b8c9bd" stroke-width="3" marker-end="url(#arrow)"/>
+    <rect x="166" y="463" width="105" height="40" rx="8" class="state"/><text x="184" y="489">WANDER</text>
+    <path d="M271 483h29" stroke="#b8c9bd" stroke-width="3" marker-end="url(#arrow)"/>
+    <rect x="301" y="463" width="96" height="40" rx="8" class="state"/><text x="321" y="489">ALERT</text>
+    <path d="M397 483h29" stroke="#b8c9bd" stroke-width="3" marker-end="url(#arrow)"/>
+    <rect x="427" y="463" width="98" height="40" rx="8" class="state"/><text x="446" y="489">CHASE</text>
+    <path d="M525 483h29" stroke="#b8c9bd" stroke-width="3" marker-end="url(#arrow)"/>
+    <rect x="555" y="463" width="103" height="40" rx="8" fill="#42292b" stroke="#d77b69" stroke-width="2"/><text x="577" y="489">ATTACK</text>
+    <rect x="188" y="528" width="91" height="39" rx="8" class="state"/><text x="210" y="554">HURT</text>
+    <rect x="365" y="528" width="105" height="39" rx="8" class="state"/><text x="385" y="554">RETURN</text>
+    <rect x="555" y="528" width="103" height="39" rx="8" fill="#30282d" stroke="#9e8293" stroke-width="2"/><text x="580" y="554">DEAD</text>
+    <path d="M606 503v20" stroke="#b8c9bd" stroke-width="3" marker-end="url(#arrow)"/><path d="M279 548h80" stroke="#b8c9bd" stroke-width="3" marker-end="url(#arrow)"/>
+  </g>
+  <text x="690" y="476" class="small">攻击风摇后只触发一次</text><text x="690" y="504" class="small">受击可进入 HURT</text><text x="690" y="532" class="small">离开活动区则 RETURN</text><text x="690" y="560" class="small">DEAD 为终态，掉落仅一次</text>
+
+  <rect x="901" y="406" width="356" height="184" rx="11" class="panel"/>
+  <text x="923" y="439" class="title">生成与性能边界</text>
+  <text x="923" y="474">全局上限</text><text x="1141" y="474" class="green">18</text>
+  <text x="923" y="505">每区块上限</text><text x="1141" y="505" class="green">3</text>
+  <text x="923" y="536">候选缓存</text><text x="1121" y="536" class="green">≤49 区块</text>
+  <text x="923" y="567">屏幕外 + 最小半径</text><text x="1122" y="567" class="green">760px</text>
+
+  <rect x="22" y="616" width="1235" height="76" rx="10" fill="#111815" stroke="#d2b45c" stroke-width="3"/>
+  <text x="45" y="648" class="title">完整循环</text>
+  <text x="191" y="648">生态规则生成</text><text x="329" y="648">→</text><text x="368" y="648">警戒/追击/攻击</text><text x="531" y="648">→</text><text x="570" y="648">玩家反击</text><text x="674" y="648">→</text><text x="713" y="648">死亡一次</text><text x="817" y="648">→</text><text x="855" y="648">受控掉落池</text><text x="977" y="648">→</text><text x="1017" y="648" class="gold">背包持久化</text>
+  <text x="45" y="676" class="small">V0.11.0 · deterministic candidates · bounded runtime population · save 5 / generation 4 unchanged</text>
+</svg>
