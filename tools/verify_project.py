@@ -36,6 +36,16 @@ REQUIRED_PATHS = (
     "scripts/crafting/recipe_data.gd",
     "scripts/crafting/recipe_catalog.gd",
     "scripts/crafting/crafting_system.gd",
+    "scripts/combat/weapon_definition.gd",
+    "scripts/combat/weapon_catalog.gd",
+    "scripts/combat/damage_calculator.gd",
+    "scripts/combat/attack_sequence_model.gd",
+    "scripts/combat/player_combat_state.gd",
+    "scripts/combat/grave_model.gd",
+    "scripts/combat/player_combat_controller.gd",
+    "scripts/combat/combat_target_dummy.gd",
+    "scripts/combat/training_hazard.gd",
+    "scripts/combat/grave_marker.gd",
     "scripts/items/item_data.gd",
     "scripts/items/item_catalog.gd",
     "scripts/items/inventory_model.gd",
@@ -43,6 +53,7 @@ REQUIRED_PATHS = (
     "data/resources.json",
     "data/items.json",
     "data/recipes.json",
+    "data/weapons.json",
     "scripts/world/world_coordinates.gd",
     "scripts/world/chunk_data.gd",
     "scripts/world/chunk_renderer.gd",
@@ -56,6 +67,7 @@ REQUIRED_PATHS = (
     "scripts/ui/resource_hud.gd",
     "scripts/ui/inventory_panel.gd",
     "scripts/ui/crafting_panel.gd",
+    "scripts/ui/combat_hud.gd",
     "assets/fonts/NotoSansCJKsc-ProjectSubset.otf",
     "tests/run_all.gd",
     "tests/test_runner.tscn",
@@ -78,11 +90,11 @@ def main() -> int:
             failures.append(f"autoload not registered: {autoload}")
 
     version_text = (ROOT / "scripts/core/game_version.gd").read_text(encoding="utf-8")
-    if 'const VERSION := "0.9.0"' not in version_text:
-        failures.append("game version is not 0.9.0")
+    if 'const VERSION := "0.10.0"' not in version_text:
+        failures.append("game version is not 0.10.0")
 
-    if "const SAVE_VERSION := 4" not in version_text:
-        failures.append("save version is not 4")
+    if "const SAVE_VERSION := 5" not in version_text:
+        failures.append("save version is not 5")
 
     if "const GENERATION_VERSION := 4" not in version_text:
         failures.append("generation version is not 4")

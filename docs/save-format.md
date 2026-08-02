@@ -2,14 +2,16 @@
 
 ## Version
 
-- Game version: `0.9.0`
-- Save version: `4`
+- Game version: `0.10.0`
+- Save version: `5`
 - Generation version: `4`
 - Inventory schema: `2`
 - Crafting-state schema: `1`
+- Combat-state schema: `1`
+- Grave-state schema: `1`
 - Storage root: `user://saves`
 
-Save and generation formats are independent. Save version 4 adds individual tool durability and persistent crafting discoveries without changing deterministic world generation. Versions 2 and 3 are accepted only by the documented migration paths; any other save version or a mismatched generation version is rejected with a file-specific error.
+Save and generation formats are independent. Save version 5 adds player combat status and persistent graves without changing deterministic world generation. Versions 2, 3 and 4 are accepted only by the documented migration paths; any other save version or a mismatched generation version is rejected with a file-specific error.
 
 ## Directory layout
 
@@ -36,9 +38,9 @@ The directory ID is local and collision-resistant; the player-facing name remain
 
 ```json
 {
-  "save_version": 4,
+  "save_version": 5,
   "generation_version": 4,
-  "game_version": "0.9.0",
+  "game_version": "0.10.0",
   "world_id": "world_123456789",
   "world_name": "无尽边境",
   "seed_text": "无尽边境",
@@ -58,7 +60,7 @@ The 64-bit seed is stored together with its original text so the UI can reproduc
 
 ```json
 {
-  "save_version": 4,
+  "save_version": 5,
   "position": [-2048.5, 1024.25],
   "health": 73.0,
   "maximum_health": 100.0,
@@ -81,6 +83,19 @@ The 64-bit seed is stored together with its original text so the UI can reproduc
   "crafting_state": {
     "schema_version": 1,
     "discovered_items": ["branch", "fiber", "stone", "wood"]
+  },
+  "combat_state": {
+    "schema_version": 1,
+    "defense": 4.0,
+    "invulnerability_remaining": 0.25,
+    "death_count": 2,
+    "status": "alive",
+    "respawn_position": [-2016.0, 992.0]
+  },
+  "grave_state": {
+    "schema_version": 1,
+    "next_id": 1,
+    "graves": []
   }
 }
 ```
@@ -89,13 +104,17 @@ The slot array always contains exactly 24 objects in player-defined order. Empty
 
 Crafting discoveries are sorted known item IDs. They persist even after the player consumes or discards the last copy of an item, while loading also discovers any items currently in the inventory. JSON numbers are validated and reconstructed through `InventoryModel` and `CraftingSystem` before gameplay receives a normalized snapshot.
 
+Combat state stores non-negative defense, remaining hit protection, cumulative death count, `alive`/`dead` status and a signed safe respawn point. A normal lethal hit deposits inventory and respawns synchronously, so committed gameplay saves normally contain `alive`; `dead` is accepted on load and immediately resolves to the saved safe position.
+
+Each grave entry contains a positive unique `id`, signed `position` and a complete inventory-schema-2 snapshot. `next_id` is greater than every existing grave ID. Empty graves are invalid and removed after complete reclaim. Partial reclaim writes every unaccepted stack back into a normalized grave snapshot, including individual durability.
+
 ## Chunk differences
 
 Generated terrain, climate, biomes and unmodified resources are never written. A surface chunk file exists only after a permanent change:
 
 ```json
 {
-  "save_version": 4,
+  "save_version": 5,
   "generation_version": 4,
   "layer": "surface",
   "chunk": [-1, -5],
@@ -125,12 +144,14 @@ Manual saves copy the existing metadata, player document and difference files in
 
 ## Corruption behavior
 
-Loading validates readable JSON objects, save version 4 or migratable version 2/3, exact generation version, required metadata, player position/attributes, all inventory slots, durability bounds, crafting state and difference arrays. Parse failures include the filename, parser line and message. The Continue action leaves the player on the menu and displays `SaveManager.last_error`; it never silently starts a new world over damaged data.
+Loading validates readable JSON objects, save version 5 or migratable version 2/3/4, exact generation version, required metadata, player position/attributes, all inventory slots, durability bounds, crafting discoveries, combat status, every grave inventory and difference arrays. Parse failures include the filename, parser line and message. The Continue action leaves the player on the menu and displays `SaveManager.last_error`; it never silently starts a new world over damaged data.
 
-## Format-2 and format-3 migration
+## Format-2, format-3 and format-4 migration
 
-V0.7 format-2 player documents stored `inventory` as an item-to-count dictionary. V0.9 validates the legacy fields, feeds those counts through canonical stack limits into a 24-slot inventory, assigns no invented tools and initializes crafting discoveries from the restored material slots.
+V0.7 format-2 player documents stored `inventory` as an item-to-count dictionary. V0.10 validates the legacy fields, feeds those counts through canonical stack limits into a 24-slot inventory, assigns no invented tools and initializes crafting discoveries from the restored material slots.
 
-V0.8 format-3 documents already contain 24 inventory slots under schema 1. V0.9 accepts and normalizes those non-durable slots under schema 2, initializes crafting discovery from the known contents and preserves slot order and hotbar selection. Unknown items, over-capacity counts, invalid slots or malformed documents fail with actionable migration errors rather than being truncated.
+V0.8 format-3 documents already contain 24 inventory slots under schema 1. V0.10 accepts and normalizes those non-durable slots under schema 2, initializes crafting discovery from the known contents and preserves slot order and hotbar selection.
 
-Both paths update metadata, player state and chunk-difference documents in memory to save format 4 and transactionally commit format 4 on the next save. Migration never changes generation format or recreates unmodified chunks.
+V0.9 format-4 documents already contain inventory schema 2 and crafting-state schema 1. V0.10 preserves both objects exactly, initializes combat state with the last player position as the safe respawn point and creates an empty grave-state list. Unknown items, over-capacity counts, invalid slots or malformed documents fail with actionable migration errors rather than being truncated.
+
+All paths update metadata, player state and chunk-difference documents in memory to save format 5 and transactionally commit format 5 on the next save. Migration never changes generation format or recreates unmodified chunks.

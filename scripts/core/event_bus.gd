@@ -17,6 +17,10 @@ signal inventory_changed(inventory: Dictionary)
 signal inventory_state_changed(inventory_state: Dictionary)
 signal crafting_state_changed(recipe_views: Array)
 signal interaction_feedback(message: String, successful: bool)
+signal attack_started(attack: Dictionary)
+signal combat_status_changed(status: Dictionary)
+signal combat_feedback(message: String, successful: bool)
+signal grave_state_changed(state: Dictionary)
 signal save_status_changed(message: String, successful: bool)
 
 

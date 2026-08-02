@@ -11,6 +11,7 @@ var _stream_manager: ChunkStreamManager
 var _generation_hud: GenerationHud
 var _inventory_panel: InventoryPanel
 var _crafting_panel: CraftingPanel
+var _combat_controller: PlayerCombatController
 var _game_time_seconds := 0.0
 var _autosave_elapsed := 0.0
 var _exit_save_requested := false
@@ -25,7 +26,7 @@ func _ready() -> void:
 		_world_seed = SaveManager.current_seed()
 		_game_time_seconds = SaveManager.current_game_time_seconds()
 	_build_world()
-	LogManager.info("WorldSandbox", "V0.9.0 crafting-enabled world ready: %s" % (SaveManager.current_world_name() if SaveManager.has_current_world() else "temporary"))
+	LogManager.info("WorldSandbox", "V0.10.0 combat-enabled world ready: %s" % (SaveManager.current_world_name() if SaveManager.has_current_world() else "temporary"))
 
 
 func _process(delta: float) -> void:
@@ -54,9 +55,11 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("toggle_chunk_borders"):
 		_stream_manager.toggle_chunk_boundaries()
 	elif event.is_action_pressed("interact"):
-		_stream_manager.interact_with_nearest_resource()
+		_stream_manager.interact()
 	elif event.is_action_pressed("cycle_tool"):
 		_stream_manager.cycle_active_tool()
+	elif event.is_action_pressed("attack") and not _inventory_panel.is_inventory_open() and not _crafting_panel.is_crafting_open():
+		_combat_controller.request_attack()
 	elif event.is_action_pressed("manual_save"):
 		_request_save(true)
 	elif event.is_action_pressed("toggle_inventory"):
@@ -99,13 +102,17 @@ func _build_world() -> void:
 		_player.position = WorldCoordinates.tile_to_world_pixel(spawn_tile, true)
 	else:
 		_player.restore_snapshot(player_snapshot)
+	if _player.combat_state().respawn_position.is_zero_approx():
+		_player.combat_state().respawn_position = _player.position
 	var camera := _player.get_node("Camera2D") as PixelCamera
 	camera.configure_unbounded()
 	add_child(_player)
+	_player.died.connect(_on_player_died)
 	var canvas := CanvasLayer.new()
 	canvas.layer = 20
 	add_child(canvas)
 	canvas.add_child(GameplayHud.new())
+	canvas.add_child(CombatHud.new())
 	canvas.add_child(ResourceHud.new())
 	_generation_hud = GenerationHud.new()
 	canvas.add_child(_generation_hud)
@@ -117,6 +124,10 @@ func _build_world() -> void:
 		_stream_manager.restore_persistence(SaveManager.loaded_world_state_snapshot())
 	_stream_manager.metrics_changed.connect(_generation_hud.update_streaming)
 	add_child(_stream_manager)
+	_combat_controller = PlayerCombatController.new()
+	_combat_controller.configure(_player, _stream_manager)
+	_player.add_child(_combat_controller)
+	_build_combat_training_area(_player.global_position)
 	_inventory_panel = InventoryPanel.new()
 	canvas.add_child(_inventory_panel)
 	_inventory_panel.configure(_stream_manager)
@@ -125,6 +136,8 @@ func _build_world() -> void:
 	_crafting_panel.configure(_stream_manager)
 	if "--noise-view" in OS.get_cmdline_user_args():
 		_stream_manager.toggle_noise_view()
+	if _player.combat_state().status == &"dead" or _player.health <= 0.0:
+		_player.respawn_at(_player.combat_state().respawn_position)
 
 
 func _request_save(create_backup: bool) -> void:
@@ -136,3 +149,18 @@ func _request_save(create_backup: bool) -> void:
 		_game_time_seconds,
 		create_backup
 	)
+
+
+func _on_player_died(death_position: Vector2) -> void:
+	_stream_manager.create_death_grave(death_position)
+	_player.respawn_at(_player.combat_state().respawn_position)
+	_request_save(false)
+
+
+func _build_combat_training_area(origin: Vector2) -> void:
+	var dummy := CombatTargetDummy.new()
+	dummy.position = origin + Vector2(88, 0)
+	add_child(dummy)
+	var hazard := TrainingHazard.new()
+	hazard.position = origin + Vector2(-88, 20)
+	add_child(hazard)

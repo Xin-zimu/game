@@ -101,6 +101,10 @@ toggle_crafting={
 "deadzone": 0.25,
 "events": [Object(InputEventKey,"physical_keycode":67)]
 }
+attack={
+"deadzone": 0.25,
+"events": [Object(InputEventKey,"physical_keycode":74), Object(InputEventMouseButton,"button_index":1)]
+}
 
 [layer_names]
 

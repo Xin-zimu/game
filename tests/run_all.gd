@@ -21,6 +21,9 @@ func _ready() -> void:
 	_test_recipe_catalog_contract()
 	_test_crafting_system()
 	_test_tool_speed_and_durability()
+	_test_weapon_catalog_contract()
+	_test_attack_sequence_and_damage()
+	_test_player_combat_state_and_graves()
 	_test_deterministic_generation()
 	_test_biome_regions()
 	_test_resource_generation()
@@ -36,6 +39,7 @@ func _ready() -> void:
 	await _test_resource_hud_layout()
 	await _test_inventory_panel_layout()
 	await _test_crafting_panel_layout()
+	await _test_combat_nodes_and_hud()
 	await _test_main_menu_layout()
 	_finish()
 
@@ -45,11 +49,12 @@ func _test_project_resources() -> void:
 	_assert_true(ResourceLoader.exists("res://scenes/main/game.tscn"), "game scene exists")
 	_assert_true(ResourceLoader.exists("res://scenes/player/player.tscn"), "player scene exists")
 	_assert_true(ResourceLoader.exists("res://assets/branding/icon.svg"), "application icon exists")
+	_assert_true(ResourceLoader.exists("res://data/weapons.json"), "weapon catalog exists")
 
 
 func _test_version_contract() -> void:
-	_assert_equal(GameVersion.VERSION, "0.9.0", "version constant")
-	_assert_equal(GameVersion.SAVE_VERSION, 4, "save version incremented for V0.9 durability and crafting unlocks")
+	_assert_equal(GameVersion.VERSION, "0.10.0", "version constant")
+	_assert_equal(GameVersion.SAVE_VERSION, 5, "save version incremented for V0.10 combat status and graves")
 	_assert_equal(GameVersion.GENERATION_VERSION, 4, "generation version incremented")
 
 
@@ -61,6 +66,10 @@ func _test_event_bus_contract() -> void:
 	_assert_true(EventBus.has_signal("inventory_changed"), "inventory signal exists")
 	_assert_true(EventBus.has_signal("inventory_state_changed"), "slot inventory signal exists")
 	_assert_true(EventBus.has_signal("crafting_state_changed"), "crafting recipe-view signal exists")
+	_assert_true(EventBus.has_signal("attack_started"), "attack lifecycle signal exists")
+	_assert_true(EventBus.has_signal("combat_status_changed"), "combat status signal exists")
+	_assert_true(EventBus.has_signal("combat_feedback"), "combat feedback signal exists")
+	_assert_true(EventBus.has_signal("grave_state_changed"), "grave state signal exists")
 	_assert_true(EventBus.has_signal("save_status_changed"), "save status signal exists")
 
 
@@ -276,6 +285,76 @@ func _test_tool_speed_and_durability() -> void:
 	_assert_equal(int(sort_inventory.slot(pickaxe_slot)["durability"]), 53, "inventory sorting preserves individual tool durability")
 
 
+func _test_weapon_catalog_contract() -> void:
+	var catalog := WeaponCatalog.new()
+	_assert_true(catalog.is_valid(), "external weapon configuration loads and validates")
+	_assert_equal(catalog.weapon_ids(), [&"unarmed", &"wood_sword", &"stone_sword"], "weapon IDs are unique, stable and data-driven")
+	var unarmed := catalog.weapon(&"unarmed")
+	var wooden := catalog.weapon(&"wood_sword")
+	var stone := catalog.weapon(&"stone_sword")
+	_assert_true(unarmed != null and wooden != null and stone != null, "unarmed, wooden sword and stone sword definitions exist")
+	_assert_true(stone.damage > wooden.damage and wooden.damage > unarmed.damage, "weapon damage progression increases by material tier")
+	_assert_true(stone.attack_range > unarmed.attack_range and stone.knockback > wooden.knockback, "weapon range and knockback come from weapon data")
+	_assert_equal(stone.combo_count(), 3, "stone sword exposes the planned three-hit combo")
+
+
+func _test_attack_sequence_and_damage() -> void:
+	var definition := WeaponCatalog.new().weapon(&"wood_sword")
+	var sequence := AttackSequenceModel.new()
+	var first := sequence.request_attack(definition, Vector2.RIGHT)
+	_assert_true(bool(first["ok"]) and int(first["combo_index"]) == 1, "normal attack starts the first combo step")
+	_assert_true((first["direction"] as Vector2).is_equal_approx(Vector2.RIGHT), "attack direction follows normalized player facing")
+	_assert_true((first["hitbox_position"] as Vector2).is_equal_approx(Vector2(definition.attack_range * 0.5, 0.0)) and is_zero_approx(float(first["hitbox_rotation"])), "directional hitbox is centered in front of the player")
+	_assert_true(sequence.register_target_hit(101), "active attack accepts its first target hit")
+	_assert_true(not sequence.register_target_hit(101), "same attack cannot hit the same target twice")
+	_assert_true(not bool(sequence.request_attack(definition, Vector2.RIGHT)["ok"]), "attack cooldown rejects an early repeated input")
+	sequence.tick(definition.cooldown() + 0.01)
+	var second := sequence.request_attack(definition, Vector2.DOWN)
+	_assert_true(bool(second["ok"]) and int(second["combo_index"]) == 2, "attack inside the combo window advances the chain")
+	_assert_true(sequence.register_target_hit(101), "new attack ID may hit the same target again")
+	sequence.tick(AttackSequenceModel.COMBO_RESET_SECONDS + 0.01)
+	var reset := sequence.request_attack(definition, Vector2.LEFT)
+	_assert_true(bool(reset["ok"]) and int(reset["combo_index"]) == 1, "expired combo window resets to the first attack")
+	_assert_equal(DamageCalculator.calculate(20.0, 5.0), 17, "damage formula applies the documented defense coefficient")
+	_assert_equal(DamageCalculator.calculate(2.0, 999.0), 1, "defense calculation preserves minimum one damage")
+
+
+func _test_player_combat_state_and_graves() -> void:
+	var combat := PlayerCombatState.new()
+	combat.defense = 5.0
+	combat.respawn_position = Vector2(-64.0, 96.0)
+	var first_hit := combat.apply_hit(30.0, 100.0, 20.0, Vector2.RIGHT, 180.0)
+	_assert_true(bool(first_hit["accepted"]) and int(first_hit["damage"]) == 17 and float(first_hit["health"]) == 13.0, "incoming hit applies attack, defense and health exactly")
+	_assert_equal(first_hit["knockback"], Vector2(180.0, 0.0), "accepted hit applies directional knockback")
+	var blocked := combat.apply_hit(13.0, 100.0, 20.0, Vector2.RIGHT, 180.0)
+	_assert_true(not bool(blocked["accepted"]), "hit invulnerability rejects overlapping damage")
+	combat.tick(PlayerCombatState.HIT_INVULNERABILITY_SECONDS + 0.01)
+	var lethal := combat.apply_hit(13.0, 100.0, 99.0, Vector2.LEFT, 0.0)
+	_assert_true(bool(lethal["died"]) and combat.status == &"dead" and combat.death_count == 1, "lethal damage enters death state exactly once")
+	combat.respawn()
+	_assert_true(combat.status == &"alive" and combat.invulnerability_remaining > 0.0, "respawn restores alive state with protection")
+	var combat_snapshot := combat.persistence_snapshot()
+	var restored_combat := PlayerCombatState.new()
+	_assert_true(restored_combat.restore_snapshot(combat_snapshot) and restored_combat.persistence_snapshot() == combat_snapshot, "combat status round trip preserves defense, deaths and respawn position")
+	var inventory := InventoryModel.new()
+	inventory.add_item(&"wood", 7)
+	inventory.add_item(&"stone_sword", 1)
+	var sword_slot := _find_item_slot(inventory, &"stone_sword")
+	inventory.damage_tool_at(sword_slot, 9)
+	var graves := GraveModel.new()
+	var grave := graves.deposit(Vector2(-128.0, 256.0), inventory)
+	_assert_true(not grave.is_empty() and inventory.is_empty() and graves.grave_count() == 1, "death deposit moves the complete inventory into one grave")
+	var grave_snapshot := graves.persistence_snapshot()
+	var restored_graves := GraveModel.new()
+	_assert_true(restored_graves.restore_snapshot(grave_snapshot), "grave state validates and restores")
+	_assert_equal(int(restored_graves.nearest_grave(Vector2(-130.0, 255.0), 8.0)["id"]), int(grave["id"]), "nearest grave uses world-space distance")
+	var reclaimed_inventory := InventoryModel.new()
+	var reclaimed := restored_graves.reclaim(int(grave["id"]), reclaimed_inventory)
+	var reclaimed_sword_slot := _find_item_slot(reclaimed_inventory, &"stone_sword")
+	_assert_true(bool(reclaimed["complete"]) and restored_graves.grave_count() == 0, "grave reclaim removes a fully recovered grave")
+	_assert_true(reclaimed_inventory.quantity(&"wood") == 7 and int(reclaimed_inventory.slot(reclaimed_sword_slot)["durability"]) == 71, "grave reclaim preserves exact item counts and weapon durability")
+
+
 func _test_deterministic_generation() -> void:
 	var seed := WorldSeed.from_text("无尽边境")
 	var first_generator := TerrainGenerator.new(seed)
@@ -451,7 +530,7 @@ func _test_save_system() -> void:
 	var root := SaveManager.current_world_root_absolute()
 	_assert_true(FileAccess.file_exists(root.path_join("world.json")) and FileAccess.file_exists(root.path_join("player.json")), "new world contains metadata and player documents")
 	var metadata := _read_json_for_test(root.path_join("world.json"))
-	_assert_equal(int(metadata.get("save_version", 0)), 4, "world metadata records save format 4")
+	_assert_equal(int(metadata.get("save_version", 0)), 5, "world metadata records save format 5")
 	_assert_equal(int(metadata.get("generation_version", 0)), 4, "world metadata records generation format 4")
 	_assert_equal(String(metadata.get("world_name", "")), "自动测试边境", "world metadata preserves the world name")
 	_assert_equal(String(metadata.get("seed_text", "")), "存档种子-070", "world metadata preserves the text seed")
@@ -463,6 +542,7 @@ func _test_save_system() -> void:
 		"collected_resources": [],
 		"inventory": empty_inventory.snapshot(),
 		"crafting_state": CraftingSystem.new(empty_inventory).persistence_snapshot(),
+		"grave_state": GraveModel.new().persistence_snapshot(),
 		"active_tool": "hands",
 	}
 	_assert_true(SaveManager.request_save(initial_player, empty_state, 1.25, false), "automatic save request accepts an immutable snapshot")
@@ -472,6 +552,12 @@ func _test_save_system() -> void:
 	player["position"] = [-2048.5, 1024.25]
 	player["health"] = 73.0
 	player["stamina"] = 41.0
+	var saved_combat := PlayerCombatState.new()
+	saved_combat.defense = 4.0
+	saved_combat.death_count = 2
+	saved_combat.invulnerability_remaining = 0.25
+	saved_combat.respawn_position = Vector2(-2016.0, 992.0)
+	player["combat_state"] = saved_combat.persistence_snapshot()
 	var removed_keys := ["-1:-129:0", "33:65:1"]
 	var changed_inventory := InventoryModel.new()
 	changed_inventory.add_item(&"wood", 7)
@@ -484,10 +570,19 @@ func _test_save_system() -> void:
 	var changed_crafting := CraftingSystem.new(changed_inventory)
 	changed_crafting.refresh_discoveries()
 	var changed_crafting_snapshot := changed_crafting.persistence_snapshot()
+	var grave_inventory := InventoryModel.new()
+	grave_inventory.add_item(&"branch", 4)
+	grave_inventory.add_item(&"stone_sword", 1)
+	var grave_sword_slot := _find_item_slot(grave_inventory, &"stone_sword")
+	grave_inventory.damage_tool_at(grave_sword_slot, 11)
+	var changed_graves := GraveModel.new()
+	changed_graves.deposit(Vector2(-1990.0, 1004.0), grave_inventory)
+	var changed_grave_snapshot := changed_graves.persistence_snapshot()
 	var changed_state := {
 		"collected_resources": removed_keys,
 		"inventory": changed_inventory_snapshot,
 		"crafting_state": changed_crafting_snapshot,
+		"grave_state": changed_grave_snapshot,
 		"active_tool": "axe",
 	}
 	var dispatch_started := Time.get_ticks_usec()
@@ -504,6 +599,7 @@ func _test_save_system() -> void:
 	_assert_equal(restored_player["position"], [-2048.5, 1024.25], "player position restores exactly")
 	_assert_equal(float(restored_player["health"]), 73.0, "player health restores exactly")
 	_assert_equal(float(restored_player["stamina"]), 41.0, "player stamina restores exactly")
+	_assert_equal(restored_player["combat_state"], saved_combat.persistence_snapshot(), "player defense, invulnerability, death count and respawn point restore exactly")
 	var restored_world_state := SaveManager.loaded_world_state_snapshot()
 	var restored_removed := restored_world_state["collected_resources"] as Array
 	_assert_true(restored_removed.has(removed_keys[0]) and restored_removed.has(removed_keys[1]), "destroyed resources restore from chunk differences")
@@ -513,6 +609,7 @@ func _test_save_system() -> void:
 	var restored_tool_slot := _find_item_slot(restored_inventory_model, &"wood_axe")
 	_assert_true(restored_tool_slot == saved_tool_slot and int(restored_inventory_model.slot(restored_tool_slot)["durability"]) == 23, "selected hotbar tool and individual durability restore exactly")
 	_assert_equal(restored_world_state["crafting_state"], changed_crafting_snapshot, "V0.9 recipe discoveries restore identically")
+	_assert_equal(restored_world_state["grave_state"], changed_grave_snapshot, "V0.10 grave position, contents and durability restore identically")
 	_assert_equal(String(restored_world_state["active_tool"]), "axe", "active tool restores with player attributes")
 	var restored_harvest := ResourceHarvestState.new()
 	_assert_true(restored_harvest.restore_snapshot(restored_removed, restored_world_state["inventory"]), "restored inventory snapshot passes schema validation")
@@ -535,15 +632,15 @@ func _test_save_system() -> void:
 			legacy_difference["save_version"] = 2
 			_write_json_for_test(chunks_path.path_join(filename), legacy_difference)
 	SaveManager.clear_current_world()
-	_assert_true(SaveManager.load_world(world_id), "V0.7 save format loads through the explicit V0.9 migration path")
+	_assert_true(SaveManager.load_world(world_id), "V0.7 save format loads through the explicit V0.10 migration path")
 	var migrated_state := SaveManager.loaded_world_state_snapshot()
 	var migrated_inventory := InventoryModel.new()
 	_assert_true(migrated_inventory.restore_snapshot(migrated_state["inventory"] as Dictionary), "migrated legacy counts produce a valid slot inventory")
 	_assert_true(migrated_inventory.quantity(&"wood") == 7 and migrated_inventory.quantity(&"stone") == 3, "save migration preserves legacy item totals exactly")
-	_assert_true(SaveManager.request_save(SaveManager.loaded_player_snapshot(), migrated_state, 45.0, false), "migrated world can be committed as save format 4")
+	_assert_true(SaveManager.request_save(SaveManager.loaded_player_snapshot(), migrated_state, 45.0, false), "migrated world can be committed as save format 5")
 	SaveManager.flush_pending_save()
-	_assert_equal(int(_read_json_for_test(root.path_join("world.json")).get("save_version", 0)), 4, "next save commits V0.7 world metadata as format 4")
-	_assert_equal(int(_read_json_for_test(root.path_join("player.json")).get("save_version", 0)), 4, "next save commits V0.7 player inventory as format 4")
+	_assert_equal(int(_read_json_for_test(root.path_join("world.json")).get("save_version", 0)), 5, "next save commits V0.7 world metadata as format 5")
+	_assert_equal(int(_read_json_for_test(root.path_join("player.json")).get("save_version", 0)), 5, "next save commits V0.7 player inventory as format 5")
 	var v08_metadata := _read_json_for_test(root.path_join("world.json"))
 	v08_metadata["save_version"] = 3
 	var v08_player := _read_json_for_test(root.path_join("player.json"))
@@ -558,10 +655,29 @@ func _test_save_system() -> void:
 			v08_difference["save_version"] = 3
 			_write_json_for_test(chunks_path.path_join(filename), v08_difference)
 	SaveManager.clear_current_world()
-	_assert_true(SaveManager.load_world(world_id), "V0.8 save format 3 migrates to durability-capable format 4")
-	_assert_equal(int(SaveManager.loaded_player_snapshot().get("save_version", 0)), 4, "V0.8 migration normalizes player save version in memory")
+	_assert_true(SaveManager.load_world(world_id), "V0.8 save format 3 migrates to combat-capable format 5")
+	_assert_equal(int(SaveManager.loaded_player_snapshot().get("save_version", 0)), 5, "V0.8 migration normalizes player save version in memory")
 	_assert_equal(int((SaveManager.loaded_world_state_snapshot()["inventory"] as Dictionary).get("schema_version", 0)), 2, "V0.8 inventory schema upgrades from 1 to 2")
 	_assert_true((SaveManager.loaded_world_state_snapshot()["crafting_state"] as Dictionary).has("discovered_items"), "V0.8 migration initializes crafting discovery state")
+	_assert_true((SaveManager.loaded_player_snapshot()["combat_state"] as Dictionary).has("respawn_position") and (SaveManager.loaded_world_state_snapshot()["grave_state"] as Dictionary).has("graves"), "V0.8 migration initializes combat and grave state")
+	var v09_metadata := _read_json_for_test(root.path_join("world.json"))
+	v09_metadata["save_version"] = 4
+	var v09_player := SaveManager.loaded_player_snapshot()
+	v09_player["save_version"] = 4
+	var v09_crafting_snapshot := (v09_player["crafting_state"] as Dictionary).duplicate(true)
+	v09_player.erase("combat_state")
+	v09_player.erase("grave_state")
+	_write_json_for_test(root.path_join("world.json"), v09_metadata)
+	_write_json_for_test(root.path_join("player.json"), v09_player)
+	for filename in difference_directory.get_files():
+		if filename.ends_with(".json"):
+			var v09_difference := _read_json_for_test(chunks_path.path_join(filename))
+			v09_difference["save_version"] = 4
+			_write_json_for_test(chunks_path.path_join(filename), v09_difference)
+	SaveManager.clear_current_world()
+	_assert_true(SaveManager.load_world(world_id), "V0.9 save format 4 migrates to combat-capable format 5")
+	_assert_equal(SaveManager.loaded_world_state_snapshot()["crafting_state"], v09_crafting_snapshot, "V0.9 migration preserves the exact crafting-state object")
+	_assert_true((SaveManager.loaded_player_snapshot()["combat_state"] as Dictionary).has("death_count") and (SaveManager.loaded_world_state_snapshot()["grave_state"] as Dictionary).has("next_id"), "V0.9 migration initializes combat status and an empty grave list")
 	var corrupt_file := FileAccess.open(root.path_join("world.json"), FileAccess.WRITE)
 	corrupt_file.store_string("{broken save")
 	corrupt_file.flush()
@@ -713,6 +829,13 @@ func _test_player_scene_contract() -> void:
 	player.restore_snapshot({"position": [-96.5, 160.25], "health": 64.0, "maximum_health": 120.0, "stamina": 33.0, "maximum_stamina": 80.0})
 	_assert_equal(player.position, Vector2(-96.5, 160.25), "player restore applies signed position")
 	_assert_true(player.health == 64.0 and player.maximum_health == 120.0 and player.stamina == 33.0 and player.maximum_stamina == 80.0, "player restore applies health and stamina attributes")
+	player.combat_state().tick(2.0)
+	player.combat_state().respawn_position = Vector2(-64.0, 96.0)
+	var lethal := player.receive_hit(999.0, Vector2.LEFT, 100.0)
+	_assert_true(bool(lethal["died"]) and player.health == 0.0 and player.combat_state().status == &"dead", "player enters a valid death state after lethal damage")
+	player.respawn_at(player.combat_state().respawn_position)
+	_assert_true(player.health == player.maximum_health and player.global_position == Vector2(-64.0, 96.0) and player.combat_state().status == &"alive", "player death can complete a normal safe-position respawn")
+	_assert_true((player.persistence_snapshot()["combat_state"] as Dictionary).has("death_count"), "player persistence includes combat status")
 	player.queue_free()
 
 
@@ -814,6 +937,71 @@ func _test_crafting_panel_layout() -> void:
 	panel.set_crafting_open(false)
 	_assert_true(not panel.is_crafting_open(), "crafting panel closes without mutating recipes")
 	panel.queue_free()
+
+
+func _test_combat_nodes_and_hud() -> void:
+	var controller := PlayerCombatController.new()
+	add_child(controller)
+	var dummy := CombatTargetDummy.new()
+	dummy.position = Vector2(120, 120)
+	add_child(dummy)
+	var hazard := TrainingHazard.new()
+	hazard.position = Vector2(180, 120)
+	add_child(hazard)
+	var hud := CombatHud.new()
+	add_child(hud)
+	await get_tree().physics_frame
+	await get_tree().process_frame
+	var hitbox := controller.find_child("PlayerAttackHitbox", true, false) as Area2D
+	var hit_shape := controller.find_child("AttackCollisionShape2D", true, false) as CollisionShape2D
+	_assert_true(hitbox != null and hit_shape != null and hitbox.collision_mask == 8, "player attack uses a short-lived Area2D enemy hitbox")
+	_assert_true(dummy.collision_layer == 8 and hazard.collision_mask == 2, "training target and hazard use isolated enemy/player collision layers")
+	var dummy_hit := dummy.receive_attack({"attack_id": 7, "damage": 12.0, "direction": Vector2.RIGHT, "knockback": 170.0})
+	_assert_true(bool(dummy_hit["accepted"]) and int(dummy_hit["damage"]) == 10, "training target applies defense-adjusted melee damage")
+	_assert_true((dummy.debug_snapshot()["knockback"] as Vector2).x > 0.0, "training target receives directional knockback")
+	EventBus.combat_status_changed.emit({"weapon_name": "石剑", "combo_index": 2, "combo_count": 3, "cooldown_remaining": 0.2, "cooldown_total": 0.4})
+	EventBus.grave_state_changed.emit({"count": 1, "graves": []})
+	EventBus.combat_feedback.emit("石剑 · 第 2 段", true)
+	await get_tree().process_frame
+	var panel := hud.find_child("CombatPanel", true, false) as Control
+	var weapon_label := hud.find_child("CombatWeaponLabel", true, false) as Label
+	var combo_label := hud.find_child("CombatComboLabel", true, false) as Label
+	var grave_label := hud.find_child("CombatGraveLabel", true, false) as Label
+	var feedback_label := hud.find_child("CombatFeedbackLabel", true, false) as Label
+	_assert_true(panel != null and weapon_label != null and combo_label != null and grave_label != null and feedback_label != null, "combat HUD exposes weapon, combo, cooldown, grave and feedback nodes")
+	_assert_true("石剑" in weapon_label.text and "2/3" in combo_label.text and "1" in grave_label.text, "combat HUD reflects weapon combo and grave state")
+	_assert_true(get_viewport().get_visible_rect().encloses(panel.get_global_rect()) and get_viewport().get_visible_rect().encloses(feedback_label.get_global_rect()), "combat HUD remains inside the 1280×720 viewport")
+	var integration_player := (load("res://scenes/player/player.tscn") as PackedScene).instantiate() as PlayerCharacter
+	integration_player.position = Vector2(-2048.0, -4096.0)
+	add_child(integration_player)
+	var integration_chunk := TerrainGenerator.new(WorldSeed.from_text("combat-integration")).generate_chunk(Vector2i(-2, -4))
+	var integration_stream := ChunkStreamManager.new()
+	integration_stream.configure(WorldSeed.from_text("combat-integration"), integration_player, integration_chunk)
+	add_child(integration_stream)
+	await get_tree().physics_frame
+	var integration_inventory := integration_stream.harvest_state().inventory_model()
+	integration_inventory.add_item(&"wood_sword", 1)
+	var integration_sword_slot := _find_item_slot(integration_inventory, &"wood_sword")
+	integration_inventory.select_hotbar(integration_sword_slot)
+	var integration_controller := PlayerCombatController.new()
+	integration_controller.configure(integration_player, integration_stream)
+	integration_player.add_child(integration_controller)
+	var integration_dummy := CombatTargetDummy.new()
+	integration_dummy.position = integration_player.position + Vector2.RIGHT * 30.0
+	add_child(integration_dummy)
+	await get_tree().physics_frame
+	var started := integration_controller.request_attack()
+	var first_contact := integration_controller._attempt_hit(integration_dummy)
+	var repeated_contact := integration_controller._attempt_hit(integration_dummy)
+	_assert_true(bool(started["ok"]) and first_contact and not repeated_contact and integration_dummy.hit_count == 1, "real attack controller applies one hit per target for each attack ID")
+	_assert_equal(int(integration_inventory.slot(integration_sword_slot)["durability"]), 39, "one successful swing consumes weapon durability exactly once")
+	controller.queue_free()
+	dummy.queue_free()
+	hazard.queue_free()
+	hud.queue_free()
+	integration_dummy.queue_free()
+	integration_stream.queue_free()
+	integration_player.queue_free()
 
 
 func _test_main_menu_layout() -> void:

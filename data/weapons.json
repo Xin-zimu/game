@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "weapons": [
+    {
+      "id": "unarmed",
+      "display_name": "徒手攻击",
+      "item_id": "",
+      "damage": 6.0,
+      "attack_speed": 2.1,
+      "range": 38.0,
+      "hitbox_width": 26.0,
+      "active_duration": 0.12,
+      "knockback": 120.0,
+      "stamina_cost": 5.0,
+      "combo_multipliers": [1.0, 0.95, 1.2]
+    },
+    {
+      "id": "wood_sword",
+      "display_name": "木剑",
+      "item_id": "wood_sword",
+      "damage": 12.0,
+      "attack_speed": 2.4,
+      "range": 50.0,
+      "hitbox_width": 28.0,
+      "active_duration": 0.13,
+      "knockback": 170.0,
+      "stamina_cost": 7.0,
+      "combo_multipliers": [1.0, 1.05, 1.3]
+    },
+    {
+      "id": "stone_sword",
+      "display_name": "石剑",
+      "item_id": "stone_sword",
+      "damage": 18.0,
+      "attack_speed": 2.7,
+      "range": 54.0,
+      "hitbox_width": 30.0,
+      "active_duration": 0.14,
+      "knockback": 210.0,
+      "stamina_cost": 8.0,
+      "combo_multipliers": [1.0, 1.1, 1.4]
+    }
+  ]
+}
