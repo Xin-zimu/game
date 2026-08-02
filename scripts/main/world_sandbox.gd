@@ -15,6 +15,8 @@ var _combat_controller: PlayerCombatController
 var _game_time_seconds := 0.0
 var _autosave_elapsed := 0.0
 var _exit_save_requested := false
+var _day_night_cycle: DayNightCycle
+var _day_night_overlay: DayNightOverlay
 
 
 func _ready() -> void:
@@ -26,11 +28,15 @@ func _ready() -> void:
 		_world_seed = SaveManager.current_seed()
 		_game_time_seconds = SaveManager.current_game_time_seconds()
 	_build_world()
-	LogManager.info("WorldSandbox", "V0.11.0 enemy-enabled world ready: %s" % (SaveManager.current_world_name() if SaveManager.has_current_world() else "temporary"))
+	LogManager.info("WorldSandbox", "V1.0.0 complete survival loop ready: %s" % (SaveManager.current_world_name() if SaveManager.has_current_world() else "temporary"))
 
 
 func _process(delta: float) -> void:
 	_game_time_seconds += delta
+	if _day_night_cycle != null:
+		var time_state := _day_night_cycle.advance(delta)
+		_day_night_overlay.apply_time(time_state)
+		EventBus.time_state_changed.emit(time_state)
 	if not SaveManager.has_current_world():
 		return
 	_autosave_elapsed += delta
@@ -108,12 +114,21 @@ func _build_world() -> void:
 	camera.configure_unbounded()
 	add_child(_player)
 	_player.died.connect(_on_player_died)
+	_day_night_cycle = DayNightCycle.new(_game_time_seconds)
+	var lighting_canvas := CanvasLayer.new()
+	lighting_canvas.name = "DayNightCanvas"
+	lighting_canvas.layer = 10
+	add_child(lighting_canvas)
+	_day_night_overlay = DayNightOverlay.new()
+	lighting_canvas.add_child(_day_night_overlay)
+	_day_night_overlay.apply_time(_day_night_cycle.snapshot())
 	var canvas := CanvasLayer.new()
 	canvas.layer = 20
 	add_child(canvas)
 	canvas.add_child(GameplayHud.new())
 	canvas.add_child(CombatHud.new())
 	canvas.add_child(EnemyHud.new())
+	canvas.add_child(MilestoneHud.new())
 	canvas.add_child(ResourceHud.new())
 	_generation_hud = GenerationHud.new()
 	canvas.add_child(_generation_hud)
@@ -125,10 +140,10 @@ func _build_world() -> void:
 		_stream_manager.restore_persistence(SaveManager.loaded_world_state_snapshot())
 	_stream_manager.metrics_changed.connect(_generation_hud.update_streaming)
 	add_child(_stream_manager)
+	add_child(AudioCuePlayer.new())
 	_combat_controller = PlayerCombatController.new()
 	_combat_controller.configure(_player, _stream_manager)
 	_player.add_child(_combat_controller)
-	_build_combat_training_area(_player.global_position)
 	_inventory_panel = InventoryPanel.new()
 	canvas.add_child(_inventory_panel)
 	_inventory_panel.configure(_stream_manager)
@@ -156,12 +171,3 @@ func _on_player_died(death_position: Vector2) -> void:
 	_stream_manager.create_death_grave(death_position)
 	_player.respawn_at(_player.combat_state().respawn_position)
 	_request_save(false)
-
-
-func _build_combat_training_area(origin: Vector2) -> void:
-	var dummy := CombatTargetDummy.new()
-	dummy.position = origin + Vector2(88, 0)
-	add_child(dummy)
-	var hazard := TrainingHazard.new()
-	hazard.position = origin + Vector2(-88, 20)
-	add_child(hazard)

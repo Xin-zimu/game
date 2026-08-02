@@ -2,6 +2,8 @@ extends Node
 
 const SAVE_ROOT := "user://saves"
 const DEFAULT_START_CHUNK := Vector2i(-1, -4)
+const SUPPORTED_SAVE_VERSIONS := [2, 3, 4, 5, 6]
+const SUPPORTED_GENERATION_VERSIONS := [4]
 
 var last_error := ""
 var last_save_duration_ms := 0.0
@@ -82,12 +84,14 @@ func create_world(world_name: String, seed_text: String) -> bool:
 		"crafting_state": CraftingSystem.new(InventoryModel.new()).persistence_snapshot(),
 		"combat_state": initial_combat.persistence_snapshot(),
 		"grave_state": GraveModel.new().persistence_snapshot(),
+		"milestone_state": MilestoneState.new().persistence_snapshot(),
 	}
 	_world_state_snapshot = {
 		"collected_resources": [],
 		"inventory": _player_snapshot["inventory"],
 		"crafting_state": _player_snapshot["crafting_state"],
 		"grave_state": _player_snapshot["grave_state"],
+		"milestone_state": _player_snapshot["milestone_state"],
 		"active_tool": "hands",
 	}
 	var world_result := _write_initial_json(root_path.path_join("world.json"), _metadata)
@@ -174,9 +178,12 @@ func load_world(world_id: String) -> bool:
 		migrated_combat.respawn_position = Vector2(float(fallback_position[0]), float(fallback_position[1]))
 		player["combat_state"] = migrated_combat.persistence_snapshot()
 		player["grave_state"] = GraveModel.new().persistence_snapshot()
+	if loaded_save_version < 6:
+		player["milestone_state"] = MilestoneState.new().persistence_snapshot()
 	if loaded_save_version < GameVersion.SAVE_VERSION:
 		player["save_version"] = GameVersion.SAVE_VERSION
 		metadata["save_version"] = GameVersion.SAVE_VERSION
+		metadata["generation_version"] = GameVersion.GENERATION_VERSION
 		metadata["game_version"] = GameVersion.VERSION
 		LogManager.info("SaveManager", "Migrated world %s from save format %d to %d" % [world_id, loaded_save_version, GameVersion.SAVE_VERSION])
 	var normalized_player_inventory := InventoryModel.new()
@@ -191,6 +198,9 @@ func load_world(world_id: String) -> bool:
 	var normalized_graves := GraveModel.new()
 	normalized_graves.restore_snapshot(player.get("grave_state", {}) as Dictionary)
 	player["grave_state"] = normalized_graves.persistence_snapshot()
+	var normalized_milestones := MilestoneState.new()
+	normalized_milestones.restore_snapshot(player.get("milestone_state", {}) as Dictionary)
+	player["milestone_state"] = normalized_milestones.persistence_snapshot()
 	var difference_result := _load_chunk_differences(root_path.path_join("chunks/surface"))
 	if not bool(difference_result["ok"]):
 		return _fail("区块差异损坏：%s" % difference_result["error"])
@@ -202,6 +212,7 @@ func load_world(world_id: String) -> bool:
 		"inventory": player.get("inventory", {}),
 		"crafting_state": player.get("crafting_state", {}),
 		"grave_state": player.get("grave_state", {}),
+		"milestone_state": player.get("milestone_state", {}),
 		"active_tool": String(player.get("active_tool", "hands")),
 	}
 	LogManager.info("SaveManager", "Loaded world %s (%s)" % [_metadata["world_name"], world_id])
@@ -292,6 +303,7 @@ func _start_save(request: Dictionary) -> void:
 	player["inventory"] = (world_state.get("inventory", {}) as Dictionary).duplicate(true)
 	player["crafting_state"] = (world_state.get("crafting_state", {}) as Dictionary).duplicate(true)
 	player["grave_state"] = (world_state.get("grave_state", {}) as Dictionary).duplicate(true)
+	player["milestone_state"] = (world_state.get("milestone_state", {}) as Dictionary).duplicate(true)
 	_metadata["last_played_at"] = Time.get_datetime_string_from_system(false, true)
 	_metadata["game_time_seconds"] = float(request["game_time_seconds"])
 	_metadata["game_version"] = GameVersion.VERSION
@@ -377,8 +389,8 @@ func _load_chunk_differences(chunks_path: String) -> Dictionary:
 		if not bool(read_result["ok"]):
 			return {"ok": false, "error": "%s：%s" % [filename, read_result["error"]], "collected_resources": []}
 		var difference := read_result["data"] as Dictionary
-		if not [2, 3, 4, GameVersion.SAVE_VERSION].has(int(difference.get("save_version", 0))) \
-				or int(difference.get("generation_version", 0)) != GameVersion.GENERATION_VERSION \
+		if not SUPPORTED_SAVE_VERSIONS.has(int(difference.get("save_version", 0))) \
+				or not SUPPORTED_GENERATION_VERSIONS.has(int(difference.get("generation_version", 0))) \
 				or String(difference.get("layer", "")) != "surface":
 			return {"ok": false, "error": "%s 的版本或世界层无效" % filename, "collected_resources": []}
 		var removed: Variant = difference.get("removed_resources", [])
@@ -395,9 +407,9 @@ func _load_chunk_differences(chunks_path: String) -> Dictionary:
 
 
 func _validate_metadata(metadata: Dictionary) -> String:
-	if not [2, 3, 4, GameVersion.SAVE_VERSION].has(int(metadata.get("save_version", 0))):
+	if not SUPPORTED_SAVE_VERSIONS.has(int(metadata.get("save_version", 0))):
 		return "存档版本 %s 不受 V%s 支持" % [metadata.get("save_version", "缺失"), GameVersion.VERSION]
-	if int(metadata.get("generation_version", 0)) != GameVersion.GENERATION_VERSION:
+	if not SUPPORTED_GENERATION_VERSIONS.has(int(metadata.get("generation_version", 0))):
 		return "生成版本 %s 与当前版本 %d 不兼容" % [metadata.get("generation_version", "缺失"), GameVersion.GENERATION_VERSION]
 	for key in ["world_id", "world_name", "seed_text", "seed", "created_at", "last_played_at"]:
 		if not metadata.has(key) or str(metadata[key]).is_empty():
@@ -407,7 +419,7 @@ func _validate_metadata(metadata: Dictionary) -> String:
 
 func _validate_player(player: Dictionary) -> String:
 	var player_save_version := int(player.get("save_version", 0))
-	if not [2, 3, 4, GameVersion.SAVE_VERSION].has(player_save_version):
+	if not SUPPORTED_SAVE_VERSIONS.has(player_save_version):
 		return "玩家存档版本无效"
 	var position_value: Variant = player.get("position", [])
 	if not position_value is Array or (position_value as Array).size() != 2:
@@ -446,6 +458,12 @@ func _validate_player(player: Dictionary) -> String:
 		var graves := GraveModel.new()
 		if not graves.restore_snapshot(grave_value as Dictionary):
 			return graves.last_error
+		var milestone_value: Variant = player.get("milestone_state", {})
+		if not milestone_value is Dictionary:
+			return "里程碑数据必须是对象"
+		var milestones := MilestoneState.new()
+		if not milestones.restore_snapshot(milestone_value as Dictionary):
+			return milestones.last_error
 	return ""
 
 

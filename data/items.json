@@ -8,7 +8,8 @@
     {"id": "tool", "display_name": "工具", "sort_order": 30},
     {"id": "weapon", "display_name": "武器", "sort_order": 40},
     {"id": "station", "display_name": "制作设施", "sort_order": 50},
-    {"id": "utility", "display_name": "实用品", "sort_order": 60}
+    {"id": "utility", "display_name": "实用品", "sort_order": 60},
+    {"id": "reward", "display_name": "奖励", "sort_order": 70}
   ],
   "items": [
     {"id": "wood", "display_name": "木材", "category": "material", "max_stack": 50, "color": "b97845"},
@@ -19,6 +20,7 @@
     {"id": "slime_gel", "display_name": "史莱姆凝胶", "category": "material", "max_stack": 50, "color": "67b779"},
     {"id": "wolf_pelt", "display_name": "狼皮", "category": "material", "max_stack": 30, "color": "9b8d80"},
     {"id": "bat_wing", "display_name": "蝙蝠翼", "category": "material", "max_stack": 30, "color": "7f6aa8"},
+    {"id": "ancient_core", "display_name": "远古核心", "category": "reward", "max_stack": 10, "color": "e4c66b"},
     {"id": "berry", "display_name": "浆果", "category": "food", "max_stack": 20, "color": "c94f69"},
     {"id": "cooked_berries", "display_name": "熟浆果", "category": "food", "max_stack": 10, "color": "e0745f"},
     {"id": "wood_axe", "display_name": "木斧", "category": "tool", "max_stack": 1, "color": "c58a52", "tool_kind": "axe", "tool_power": 1, "durability": 30},

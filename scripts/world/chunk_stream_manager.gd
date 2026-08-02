@@ -26,6 +26,9 @@ var _grave_model := GraveModel.new()
 var _grave_markers: Dictionary = {}
 var _drop_pool: WorldDropPool
 var _enemy_director: EnemyDirector
+var _milestone_catalog := MilestoneCatalog.new()
+var _milestone_state := MilestoneState.new()
+var _ruin_encounter: RuinEncounter
 var _pending_persistence: Dictionary = {}
 var _view_mode := ChunkRenderer.ViewMode.TERRAIN
 var _show_boundaries := true
@@ -59,6 +62,14 @@ func _ready() -> void:
 	_enemy_director = EnemyDirector.new()
 	_enemy_director.configure(_world_seed, _player, _drop_pool)
 	add_child(_enemy_director)
+	var ruin_plan := RuinPlanner.new(_world_seed, _milestone_catalog).plan()
+	if ruin_plan.is_empty():
+		push_error("Unable to plan the canonical ruin: %s" % _milestone_catalog.error_message())
+	else:
+		_ruin_encounter = RuinEncounter.new()
+		_ruin_encounter.configure(ruin_plan, _player, _milestone_state, _milestone_catalog)
+		_ruin_encounter.milestone_changed.connect(func(_snapshot: Dictionary) -> void: _emit_metrics())
+		add_child(_ruin_encounter)
 	_refresh_grave_markers()
 	_refresh_targets()
 	_emit_metrics()
@@ -182,6 +193,9 @@ func consume_selected_weapon_durability() -> Dictionary:
 
 
 func interact() -> void:
+	if _ruin_encounter != null and _ruin_encounter.try_interact(_harvest_state.inventory_model()):
+		_emit_tool_and_inventory()
+		return
 	if try_reclaim_nearest_grave():
 		return
 	interact_with_nearest_resource()
@@ -302,6 +316,14 @@ func enemy_director() -> EnemyDirector:
 	return _enemy_director
 
 
+func ruin_encounter() -> RuinEncounter:
+	return _ruin_encounter
+
+
+func milestone_state() -> MilestoneState:
+	return _milestone_state
+
+
 func restore_persistence(snapshot: Dictionary) -> void:
 	_pending_persistence = snapshot.duplicate(true)
 	if is_inside_tree() and not _tool_ids.is_empty():
@@ -314,6 +336,7 @@ func persistence_snapshot() -> Dictionary:
 	snapshot["active_tool"] = String(active_tool_id())
 	snapshot["crafting_state"] = _crafting_system.persistence_snapshot() if _crafting_system != null else {}
 	snapshot["grave_state"] = _grave_model.persistence_snapshot()
+	snapshot["milestone_state"] = _milestone_state.persistence_snapshot()
 	return snapshot
 
 
@@ -437,6 +460,9 @@ func metrics_snapshot() -> Dictionary:
 		"active_drops": _drop_pool.active_count() if _drop_pool != null else 0,
 		"active_enemies": _enemy_director.active_count() if _enemy_director != null else 0,
 		"sleeping_enemies": _enemy_director.sleeping_count() if _enemy_director != null else 0,
+		"ruin_discovered": _milestone_state.ruin_discovered,
+		"boss_defeated": _milestone_state.boss_defeated,
+		"reward_claimed": _milestone_state.reward_claimed,
 		"drop_pool_capacity": _resource_catalog.drop_pool_capacity(),
 		"active_tool": active_tool_id(),
 	}
@@ -565,6 +591,11 @@ func _collect_nearby_drops() -> void:
 
 
 func _update_resource_prompt() -> void:
+	if _ruin_encounter != null:
+		var ruin_prompt := _ruin_encounter.prompt_text()
+		if not ruin_prompt.is_empty():
+			EventBus.resource_prompt_changed.emit(ruin_prompt)
+			return
 	var nearby_grave := _grave_model.nearest_grave(_player.global_position, 68.0) if _player != null else {}
 	if not nearby_grave.is_empty():
 		EventBus.resource_prompt_changed.emit("[E] 取回墓碑物品")
@@ -612,6 +643,8 @@ func _restore_pending_persistence() -> void:
 		push_error("Unable to restore crafting state: %s" % _crafting_system.last_error)
 	if not _grave_model.restore_snapshot(_pending_persistence.get("grave_state", {}) as Dictionary):
 		push_error("Unable to restore grave state: %s" % _grave_model.last_error)
+	if not _milestone_state.restore_snapshot(_pending_persistence.get("milestone_state", {}) as Dictionary):
+		push_error("Unable to restore milestone state: %s" % _milestone_state.last_error)
 	_pending_persistence.clear()
 
 

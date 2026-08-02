@@ -2,7 +2,7 @@
 
 ## Version
 
-- Game version: `0.11.0`
+- Game version: `1.0.0`
 - Generation version: `4`
 - Chunk size: `32×32` world tiles
 - Tile size: `32×32` display pixels
@@ -60,6 +60,12 @@ The generation-v4 25-chunk regression region contains all five resource types an
 ## Runtime enemy candidate contract
 
 Enemy candidates use a separate deterministic hash of world seed, signed chunk coordinate and slot number. The selected tile is accepted only on land, outside an exact resource-candidate tile and in a biome allowed by `data/enemies.json`. This planner does not append bytes to `ChunkData`; enemy movement, death and respawn are session behavior, so the generation-v4 checksum fixture is unchanged. Its cache is bounded to the current 49 preload chunks.
+
+## Canonical ruin overlay contract
+
+V1.0 derives one ruin from the world seed in a Chebyshev ring three to six chunks from the original spawn region. `RuinPlanner` ranks signed candidate chunks with a dedicated `ruin` domain, prefers configured desert/mountain/plains biomes and accepts only pure terrain samples classified as land. The same seed therefore yields the same ruin tile, biome and stable score.
+
+The ruin is a landmark overlay rather than `ChunkData`: it does not modify terrain, biome, resource bytes, seams or the generation-v4 checksum. Its discover/defeat/reward changes live in milestone save schema 1. This separation lets format-5 worlds migrate to V1.0 without shifting any existing terrain or collected-resource coordinates.
 
 ## Data/render boundary
 

@@ -2,16 +2,17 @@
 
 ## Version
 
-- Game version: `0.11.0`
-- Save version: `5`
+- Game version: `1.0.0`
+- Save version: `6`
 - Generation version: `4`
 - Inventory schema: `2`
 - Crafting-state schema: `1`
 - Combat-state schema: `1`
 - Grave-state schema: `1`
+- Milestone-state schema: `1`
 - Storage root: `user://saves`
 
-Save and generation formats are independent. Save version 5 adds player combat status and persistent graves without changing deterministic world generation. V0.11 runtime enemies require no schema change: active AI and cooldowns are session state, while picked-up enemy drops use inventory schema 2. Versions 2, 3 and 4 are accepted only by the documented migration paths; any other save version or a mismatched generation version is rejected with a file-specific error.
+Save and generation formats are independent. Save version 6 adds ordered ruin/Boss/reward progression without changing deterministic terrain bytes. Active enemies and Boss motion remain session state, while picked-up drops use inventory schema 2. Versions 2, 3, 4 and 5 are accepted only by the documented migration paths; any other save version or a mismatched generation version is rejected with a file-specific error.
 
 ## Directory layout
 
@@ -38,15 +39,15 @@ The directory ID is local and collision-resistant; the player-facing name remain
 
 ```json
 {
-  "save_version": 5,
+  "save_version": 6,
   "generation_version": 4,
-  "game_version": "0.11.0",
+  "game_version": "1.0.0",
   "world_id": "world_123456789",
   "world_name": "无尽边境",
   "seed_text": "无尽边境",
   "seed": 6266252184503203218,
-  "created_at": "2026-08-01T14:00:00",
-  "last_played_at": "2026-08-01T14:30:00",
+  "created_at": "2026-08-02T14:00:00",
+  "last_played_at": "2026-08-02T14:30:00",
   "game_time_seconds": 1800.0,
   "player_layer": "surface"
 }
@@ -60,7 +61,7 @@ The 64-bit seed is stored together with its original text so the UI can reproduc
 
 ```json
 {
-  "save_version": 5,
+  "save_version": 6,
   "position": [-2048.5, 1024.25],
   "health": 73.0,
   "maximum_health": 100.0,
@@ -96,6 +97,12 @@ The 64-bit seed is stored together with its original text so the UI can reproduc
     "schema_version": 1,
     "next_id": 1,
     "graves": []
+  },
+  "milestone_state": {
+    "schema_version": 1,
+    "ruin_discovered": true,
+    "boss_defeated": true,
+    "reward_claimed": false
   }
 }
 ```
@@ -108,13 +115,15 @@ Combat state stores non-negative defense, remaining hit protection, cumulative d
 
 Each grave entry contains a positive unique `id`, signed `position` and a complete inventory-schema-2 snapshot. `next_id` is greater than every existing grave ID. Empty graves are invalid and removed after complete reclaim. Partial reclaim writes every unaccepted stack back into a normalized grave snapshot, including individual durability.
 
+Milestone state enforces the only valid order: ruin discovery, Boss defeat, then reward claim. A claimed reward without a defeated Boss, or a defeated Boss without a discovered ruin, is rejected. The canonical ruin position is re-derived from the world seed and is not duplicated in the save. A full inventory leaves `reward_claimed=false`, allowing a later retry without loss or duplication.
+
 ## Chunk differences
 
 Generated terrain, climate, biomes and unmodified resources are never written. A surface chunk file exists only after a permanent change:
 
 ```json
 {
-  "save_version": 5,
+  "save_version": 6,
   "generation_version": 4,
   "layer": "surface",
   "chunk": [-1, -5],
@@ -144,9 +153,9 @@ Manual saves copy the existing metadata, player document and difference files in
 
 ## Corruption behavior
 
-Loading validates readable JSON objects, save version 5 or migratable version 2/3/4, exact generation version, required metadata, player position/attributes, all inventory slots, durability bounds, crafting discoveries, combat status, every grave inventory and difference arrays. Parse failures include the filename, parser line and message. The Continue action leaves the player on the menu and displays `SaveManager.last_error`; it never silently starts a new world over damaged data.
+Loading validates readable JSON objects, save version 6 or migratable version 2/3/4/5, exact generation version, required metadata, player position/attributes, all inventory slots, durability bounds, crafting discoveries, combat status, every grave inventory, milestone ordering and difference arrays. Parse failures include the filename, parser line and message. The Continue action leaves the player on the menu and displays `SaveManager.last_error`; it never silently starts a new world over damaged data.
 
-## Format-2, format-3 and format-4 migration
+## Format-2 through format-5 migration
 
 V0.7 format-2 player documents stored `inventory` as an item-to-count dictionary. V0.10 validates the legacy fields, feeds those counts through canonical stack limits into a 24-slot inventory, assigns no invented tools and initializes crafting discoveries from the restored material slots.
 
@@ -154,4 +163,6 @@ V0.8 format-3 documents already contain 24 inventory slots under schema 1. V0.10
 
 V0.9 format-4 documents already contain inventory schema 2 and crafting-state schema 1. V0.10 preserves both objects exactly, initializes combat state with the last player position as the safe respawn point and creates an empty grave-state list. Unknown items, over-capacity counts, invalid slots or malformed documents fail with actionable migration errors rather than being truncated.
 
-All paths update metadata, player state and chunk-difference documents in memory to save format 5 and transactionally commit format 5 on the next save. Migration never changes generation format or recreates unmodified chunks.
+V0.10/V0.11 format-5 documents already contain combat-state and grave-state schema 1. V1.0 preserves them exactly and initializes a valid incomplete milestone state. The player can then discover the seed-derived ruin normally.
+
+All paths update metadata, player state and chunk-difference documents in memory to save format 6 and transactionally commit format 6 on the next save. Migration never changes generation format or recreates unmodified chunks.

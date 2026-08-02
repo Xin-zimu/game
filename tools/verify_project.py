@@ -52,6 +52,13 @@ REQUIRED_PATHS = (
     "scripts/enemies/enemy_spawn_planner.gd",
     "scripts/enemies/enemy_base.gd",
     "scripts/enemies/enemy_director.gd",
+    "scripts/adventure/milestone_catalog.gd",
+    "scripts/adventure/milestone_state.gd",
+    "scripts/adventure/day_night_cycle.gd",
+    "scripts/adventure/ruin_planner.gd",
+    "scripts/adventure/ruin_guardian.gd",
+    "scripts/adventure/ruin_encounter.gd",
+    "scripts/audio/audio_cue_player.gd",
     "scripts/items/item_data.gd",
     "scripts/items/item_catalog.gd",
     "scripts/items/inventory_model.gd",
@@ -61,6 +68,7 @@ REQUIRED_PATHS = (
     "data/recipes.json",
     "data/weapons.json",
     "data/enemies.json",
+    "data/milestones.json",
     "scripts/world/world_coordinates.gd",
     "scripts/world/chunk_data.gd",
     "scripts/world/chunk_renderer.gd",
@@ -76,6 +84,8 @@ REQUIRED_PATHS = (
     "scripts/ui/crafting_panel.gd",
     "scripts/ui/combat_hud.gd",
     "scripts/ui/enemy_hud.gd",
+    "scripts/ui/day_night_overlay.gd",
+    "scripts/ui/milestone_hud.gd",
     "assets/fonts/NotoSansCJKsc-ProjectSubset.otf",
     "tests/run_all.gd",
     "tests/test_runner.tscn",
@@ -98,11 +108,11 @@ def main() -> int:
             failures.append(f"autoload not registered: {autoload}")
 
     version_text = (ROOT / "scripts/core/game_version.gd").read_text(encoding="utf-8")
-    if 'const VERSION := "0.11.0"' not in version_text:
-        failures.append("game version is not 0.11.0")
+    if 'const VERSION := "1.0.0"' not in version_text:
+        failures.append("game version is not 1.0.0")
 
-    if "const SAVE_VERSION := 5" not in version_text:
-        failures.append("save version is not 5")
+    if "const SAVE_VERSION := 6" not in version_text:
+        failures.append("save version is not 6")
 
     if "const GENERATION_VERSION := 4" not in version_text:
         failures.append("generation version is not 4")

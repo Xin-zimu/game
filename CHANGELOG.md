@@ -2,6 +2,28 @@
 
 All notable changes are recorded here. Version numbers follow the staged project plan.
 
+## [1.0.0] - 2026-08-02
+
+### Added
+
+- Basic 300-second day/night cycle with day count, night overlay and persisted world time.
+- Seed-deterministic canonical ruin located in a bounded discovery ring without changing generation-v4 chunk bytes.
+- Data-driven ruin guardian with chase, telegraphed slam, defense, health, knockback and one terminal defeat event.
+- Persistent discover/Boss/reward milestone state and explicit save-format-2/3/4/5 migrations.
+- One-time ancient-core reward with full-inventory retry and duplicate-claim prevention.
+- Direction/distance ruin hint, objective/Boss/time HUD and procedural PCM sound cues.
+
+### Changed
+
+- Game version advances to 1.0.0 and save format advances from 5 to 6; generation remains format 4.
+- Item catalog expands from 19 to 20 stable entries.
+- The V0.10 training fixtures are removed from normal world startup now that real enemies and the Boss close the combat loop.
+
+### Fixed
+
+- A full inventory cannot consume or duplicate the one-time Boss reward.
+- Legacy worlds initialize an incomplete milestone state while preserving terrain, inventory, crafting, combat and graves.
+
 ## [0.11.0] - 2026-08-02
 
 ### Added
