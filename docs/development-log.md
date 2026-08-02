@@ -1,5 +1,31 @@
 # Development Log
 
+## V0.10.0 - Player combat
+
+- Added data-driven unarmed, wooden-sword and stone-sword definitions with damage, speed, range, knockback, stamina and combos.
+- Added normal attacks, three-step combo timing, cooldown rejection and direction-following short-lived `Area2D` hitboxes.
+- Added a per-attack target registry, defense-coefficient damage, directional knockback and one durability cost per accepted swing.
+- Added player hit/roll invulnerability, death counting, safe-position respawn and respawn protection.
+- Added persistent multi-grave inventory deposit/reclaim with exact damaged-tool preservation.
+- Added a training target, controlled damage hazard and combat HUD for weapon, combo, cooldown, grave and feedback state.
+- Advanced save format to 5 with explicit format-2, format-3 and format-4 migrations; generation remains format 4.
+- Expanded the suite from 281 to 332 passing checks, including real hitbox-controller and sword-durability integration.
+
+### Iteration findings
+
+- `Area2D` can report a body through both `body_entered` and overlap polling during one active window. An attack-ID-local target set now rejects the second callback before target code runs.
+- Charging durability inside the per-target loop could consume multiple points on a wide swing. The controller records a per-swing durability flag and charges only the first accepted contact.
+- Saving a raw list of dropped stacks would lose ordered-slot validation and worn-tool values. Every grave stores a complete inventory-schema-2 snapshot and reclaims through canonical add rules.
+- V0.9 migration must preserve crafting discoveries while adding combat fields. Format-specific initialization now adds crafting only below format 4 and combat/graves only below format 5.
+- V0.10 combat labels introduced 19 Chinese characters absent from the prior subset. The rebuilt font contains all 458 required glyphs with zero missing.
+
+### Decisions
+
+- Enemy AI and procedural enemy spawning remain V0.11; V0.10 uses explicit training fixtures to exercise the complete player-side pipeline.
+- Attack collision uses geometry and player facing, never center-distance-only damage checks.
+- A lethal hit deposits inventory before immediate safe respawn, avoiding an externally visible dead-save race.
+- Multiple graves are retained so dying again before recovery cannot overwrite an earlier inventory snapshot.
+
 ## V0.9.0 - Tools and crafting
 
 - Added a validated recipe catalog with hands, workbench and campfire stations and ten progression recipes.

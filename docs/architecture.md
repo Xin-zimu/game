@@ -1,17 +1,17 @@
 # Architecture
 
-Infinite Frontier uses a layered, data-oriented Godot architecture. This document records the foundation through V0.9.0 and will evolve with every version.
+Infinite Frontier uses a layered, data-oriented Godot architecture. This document records the foundation through V0.10.0 and will evolve with every version.
 
 ## Runtime layers
 
-| Layer | Responsibility | Components through V0.9.0 |
+| Layer | Responsibility | Components through V0.10.0 |
 |---|---|---|
 | Core | Application lifecycle, settings, logging, events | `GameManager`, `SettingsManager`, `SaveManager`, `LogManager`, `EventBus` |
-| Presentation | Scenes, menus and debug UI | `main_menu.gd`, `world_sandbox.gd`, `GameplayHud`, `GenerationHud`, `ResourceHud`, `InventoryPanel`, `CraftingPanel`, `DebugPanel` |
-| Gameplay | Player, interaction, combat and progression | `PlayerCharacter`, `PlayerMotor`, `PlayerVisual`, `PixelCamera`, `ResourceHarvestState`, `InventoryModel`, `CraftingSystem` |
+| Presentation | Scenes, menus and debug UI | `main_menu.gd`, `world_sandbox.gd`, `GameplayHud`, `CombatHud`, `GenerationHud`, `ResourceHud`, `InventoryPanel`, `CraftingPanel`, `DebugPanel` |
+| Gameplay | Player, interaction, combat and progression | `PlayerCharacter`, `PlayerMotor`, `PlayerVisual`, `PixelCamera`, `ResourceHarvestState`, `InventoryModel`, `CraftingSystem`, `PlayerCombatController`, `PlayerCombatState`, `GraveModel` |
 | World | Coordinates, chunk data, persistence and streaming | `WorldCoordinates`, `ChunkData`, `ChunkStreamPlanner`, `ChunkGenerationJob`, `ChunkStreamManager`, `ChunkRenderer`, `ResourceChunkLayer`, `WorldDropPool`, `SaveWriteJob` |
 | Generation | Pure deterministic world data | `WorldSeed`, `BiomeCatalog`, `ResourceCatalog`, `ResourceGenerator`, `TerrainGenerator` |
-| Data | Stable IDs and data-driven content | `data/biomes.json`, `data/resources.json`, `data/items.json`, `data/recipes.json`, `ItemData`, `ItemCatalog`, `RecipeData`, `RecipeCatalog` |
+| Data | Stable IDs and data-driven content | `data/biomes.json`, `data/resources.json`, `data/items.json`, `data/recipes.json`, `data/weapons.json`, catalog and definition resources |
 
 ## Architectural rules
 
@@ -75,6 +75,16 @@ Durable items are individual stack-size-one slot objects with an integer `durabi
 
 Each craft clones the complete inventory, deducts inputs and adds output on that clone, then commits the normalized snapshot only when every operation succeeds. Insufficient materials, a missing station, a locked recipe or missing output capacity therefore leaves the original slots byte-for-byte unchanged. V0.9 models workbench and campfire availability by possession of their station item; placement in the world remains a later building-system responsibility.
 
+## Combat ownership
+
+`data/weapons.json` is the canonical source for stable weapon IDs, damage, attack speed, range, hitbox width, active duration, knockback, stamina cost and combo multipliers. `WeaponCatalog` validates weapon values and sword-item references. `AttackSequenceModel` owns cooldown/combo timing, normalized facing and the per-attack set of already-hit target instance IDs; it has no scene-tree dependency.
+
+`PlayerCombatController` translates an accepted attack into a short-lived `Area2D` rectangle on collision mask 4/“Enemy”. It sends an immutable attack payload only to bodies implementing `receive_attack`. Target damage remains target-owned and uses `DamageCalculator`; the controller consumes sword durability only after the first accepted contact. `CombatHud` displays event data and owns no damage or timing rules.
+
+`PlayerCombatState` owns defense, hit invulnerability, death count, alive/dead status and safe respawn position. `PlayerCharacter` owns health and physical knockback, granting roll invulnerability through the state API. A lethal result emits one death event; `world_sandbox.gd` asks the stream manager to deposit inventory, respawns the player synchronously and requests a persistence update.
+
+`GraveModel` owns a versioned list of graves and transfers normalized inventory snapshots transactionally. `ChunkStreamManager` renders the small set of grave markers, prioritizes nearby grave interaction over resource interaction and includes grave state in persistence. Partial reclaim retains every unaccepted remainder inside the grave.
+
 ## Persistence ownership
 
 `SaveManager` is an autoload because it must survive scene changes and join outstanding file tasks at shutdown. It owns world selection, schema validation, immutable save snapshots and last-error state. It never asks `PlayerCharacter` to write a file: the player and resource systems expose plain dictionaries, and `world_sandbox.gd` orchestrates the save request.
@@ -83,4 +93,4 @@ Each craft clones the complete inventory, deducts inputs and adds output on that
 
 World metadata, player attributes and generated-world differences are separate documents. Collected resource keys are grouped by mathematical chunk coordinate. Only groups with at least one permanent change are written, so visiting or unloading an unmodified chunk cannot create a save file. See `docs/save-format.md` for the normative schema.
 
-Save format 4 stores inventory schema 2, including per-instance durability, plus a crafting-state snapshot containing sorted discovered item IDs. Format-2 count dictionaries and format-3 inventory-schema-1 documents are accepted only by explicit migration paths and are committed as format 4 on the next save. Generation stays at format 4 because crafting does not alter deterministic base-world bytes.
+Save format 5 adds player combat state and versioned grave snapshots to the format-4 inventory/crafting data. Format-2 count dictionaries, format-3 inventory-schema-1 documents and format-4 crafting documents are accepted only by explicit migration paths and are committed as format 5 on the next save. Generation stays at format 4 because combat does not alter deterministic base-world bytes.

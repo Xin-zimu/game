@@ -148,6 +148,20 @@ func first_empty_slot() -> int:
 	return -1
 
 
+func is_empty() -> bool:
+	for value in _slots:
+		if not value.is_empty():
+			return false
+	return true
+
+
+func clear() -> void:
+	for index in _slots.size():
+		_slots[index] = {}
+	_selected_hotbar_slot = 0
+	last_error = ""
+
+
 func discard(index: int, quantity := -1) -> Dictionary:
 	if not _is_valid_index(index) or _slots[index].is_empty():
 		last_error = "没有可以丢弃的物品"

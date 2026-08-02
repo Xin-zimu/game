@@ -61,7 +61,7 @@ func _build_hud() -> void:
 	hints.offset_right = -260
 	hints.offset_top = -132
 	hints.offset_bottom = -104
-	hints.text = "WASD 移动 · E 采集 · Q 工具 · I 背包 · C 制作 · 1–8 快捷栏 · Ctrl+S 保存 · Esc 返回"
+	hints.text = "WASD 移动 · J/左键 攻击 · E 交互 · Q 工具 · I 背包 · C 制作 · 1–8 快捷栏 · Ctrl+S 保存"
 	hints.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hints.add_theme_font_size_override("font_size", 15)
 	hints.add_theme_color_override("font_color", Color("dce9df"))

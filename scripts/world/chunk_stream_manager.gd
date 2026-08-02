@@ -18,9 +18,12 @@ var _preload_targets: Dictionary = {}
 var _catalog := BiomeCatalog.new()
 var _resource_catalog := ResourceCatalog.new()
 var _item_catalog := ItemCatalog.new()
+var _weapon_catalog := WeaponCatalog.new()
 var _harvest_state := ResourceHarvestState.new()
 var _tool_ids: Array[StringName] = []
 var _crafting_system: CraftingSystem
+var _grave_model := GraveModel.new()
+var _grave_markers: Dictionary = {}
 var _drop_pool: WorldDropPool
 var _pending_persistence: Dictionary = {}
 var _view_mode := ChunkRenderer.ViewMode.TERRAIN
@@ -52,6 +55,7 @@ func _ready() -> void:
 	_drop_pool = WorldDropPool.new()
 	_drop_pool.configure(_resource_catalog.drop_pool_capacity(), _resource_catalog)
 	add_child(_drop_pool)
+	_refresh_grave_markers()
 	_refresh_targets()
 	_emit_metrics()
 	_emit_tool_and_inventory()
@@ -148,6 +152,67 @@ func active_tool_display_name() -> String:
 	return _item_catalog.display_name(StringName(value["item_id"]))
 
 
+func active_weapon_id() -> StringName:
+	var inventory := _harvest_state.inventory_model()
+	var value := inventory.slot(inventory.selected_hotbar_slot())
+	if value.is_empty():
+		return &"unarmed"
+	var item_id := StringName(value["item_id"])
+	return item_id if _item_catalog.tool_kind(item_id) == &"sword" and _weapon_catalog.weapon(item_id) != null else &"unarmed"
+
+
+func consume_selected_weapon_durability() -> Dictionary:
+	var inventory := _harvest_state.inventory_model()
+	var index := inventory.selected_hotbar_slot()
+	var value := inventory.slot(index)
+	if value.is_empty():
+		return {"accepted": false, "broken": false}
+	var item_id := StringName(value["item_id"])
+	if _item_catalog.tool_kind(item_id) != &"sword":
+		return {"accepted": false, "broken": false}
+	var result := inventory.damage_tool_at(index, 1)
+	_emit_tool_and_inventory()
+	if bool(result.get("broken", false)):
+		EventBus.combat_feedback.emit("%s已损坏" % _item_catalog.display_name(item_id), false)
+	return result
+
+
+func interact() -> void:
+	if try_reclaim_nearest_grave():
+		return
+	interact_with_nearest_resource()
+
+
+func create_death_grave(world_position: Vector2) -> Dictionary:
+	var grave := _grave_model.deposit(world_position, _harvest_state.inventory_model())
+	if grave.is_empty():
+		EventBus.combat_feedback.emit("背包为空，没有生成墓碑", false)
+		return {}
+	_refresh_grave_markers()
+	_emit_tool_and_inventory()
+	EventBus.combat_feedback.emit("物品已保存在墓碑中", false)
+	return grave
+
+
+func try_reclaim_nearest_grave(radius := 68.0) -> bool:
+	if _player == null:
+		return false
+	var grave := _grave_model.nearest_grave(_player.global_position, radius)
+	if grave.is_empty():
+		return false
+	var result := _grave_model.reclaim(int(grave["id"]), _harvest_state.inventory_model())
+	if not bool(result.get("ok", false)):
+		EventBus.combat_feedback.emit(_grave_model.last_error, false)
+		return true
+	_refresh_grave_markers()
+	_emit_tool_and_inventory()
+	EventBus.combat_feedback.emit(
+		"已取回墓碑中的 %d 件物品" % int(result["transferred"]) if bool(result["complete"]) else _grave_model.last_error,
+		bool(result["complete"])
+	)
+	return true
+
+
 func interact_with_nearest_resource() -> void:
 	var target := nearest_resource(_resource_catalog.interaction_radius_pixels())
 	if target.is_empty():
@@ -233,12 +298,14 @@ func restore_persistence(snapshot: Dictionary) -> void:
 	_pending_persistence = snapshot.duplicate(true)
 	if is_inside_tree() and not _tool_ids.is_empty():
 		_restore_pending_persistence()
+		_refresh_grave_markers()
 
 
 func persistence_snapshot() -> Dictionary:
 	var snapshot := _harvest_state.persistence_snapshot()
 	snapshot["active_tool"] = String(active_tool_id())
 	snapshot["crafting_state"] = _crafting_system.persistence_snapshot() if _crafting_system != null else {}
+	snapshot["grave_state"] = _grave_model.persistence_snapshot()
 	return snapshot
 
 
@@ -488,6 +555,10 @@ func _collect_nearby_drops() -> void:
 
 
 func _update_resource_prompt() -> void:
+	var nearby_grave := _grave_model.nearest_grave(_player.global_position, 68.0) if _player != null else {}
+	if not nearby_grave.is_empty():
+		EventBus.resource_prompt_changed.emit("[E] 取回墓碑物品")
+		return
 	var target := nearest_resource(_resource_catalog.interaction_radius_pixels())
 	if target.is_empty():
 		EventBus.resource_prompt_changed.emit("")
@@ -529,6 +600,8 @@ func _restore_pending_persistence() -> void:
 	)
 	if _crafting_system != null and not _crafting_system.restore_snapshot(_pending_persistence.get("crafting_state", {}) as Dictionary):
 		push_error("Unable to restore crafting state: %s" % _crafting_system.last_error)
+	if not _grave_model.restore_snapshot(_pending_persistence.get("grave_state", {}) as Dictionary):
+		push_error("Unable to restore grave state: %s" % _grave_model.last_error)
 	_pending_persistence.clear()
 
 
@@ -544,6 +617,23 @@ func _consume_active_tool_durability() -> String:
 	var result := inventory.damage_tool_at(index, 1)
 	_emit_tool_and_inventory()
 	return _item_catalog.display_name(item_id) if bool(result.get("broken", false)) else ""
+
+
+func _refresh_grave_markers() -> void:
+	for marker_value in _grave_markers.values():
+		(marker_value as GraveMarker).queue_free()
+	_grave_markers.clear()
+	for grave in _grave_model.graves():
+		var position_value := grave["position"] as Array
+		var marker := GraveMarker.new()
+		marker.configure(int(grave["id"]), Vector2(float(position_value[0]), float(position_value[1])))
+		add_child(marker)
+		_grave_markers[int(grave["id"])] = marker
+	_emit_grave_state()
+
+
+func _emit_grave_state() -> void:
+	EventBus.grave_state_changed.emit({"count": _grave_model.grave_count(), "graves": _grave_model.graves()})
 
 
 func _coordinate_set(coordinates: Array[Vector2i]) -> Dictionary:

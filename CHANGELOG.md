@@ -2,6 +2,30 @@
 
 All notable changes are recorded here. Version numbers follow the staged project plan.
 
+## [0.10.0] - 2026-08-01
+
+### Added
+
+- Validated weapon catalog for unarmed, wooden-sword and stone-sword combat definitions.
+- Normal attacks, three-step combos, cooldowns, stamina costs and direction-following `Area2D` hitboxes.
+- Per-attack target registry that prevents a target from receiving duplicate hits from one swing.
+- Documented damage/defense formula, knockback, hit invulnerability and roll invulnerability.
+- Player death count, safe-position respawn and short respawn protection.
+- Multi-grave inventory deposit/reclaim with exact durable-item preservation and world markers.
+- Combat training target, damage hazard and dedicated weapon/combo/cooldown/grave HUD.
+- Combat/grave disk persistence plus save-format-2/3/4 migration.
+
+### Changed
+
+- Save format advances from 4 to 5; inventory and generation schemas remain unchanged.
+- Equipped swords now drive attack data and lose one durability on the first accepted hit of a swing.
+- Project font subset expanded to every V0.10 runtime/data/test glyph.
+
+### Fixed
+
+- Repeated overlap callbacks from the active hitbox cannot damage the same target twice.
+- Death cannot erase backpack contents: the complete normalized snapshot is moved into a persistent grave before respawn.
+
 ## [0.9.0] - 2026-08-01
 
 ### Added

@@ -17,6 +17,12 @@ func _draw() -> void:
 	var moving := player.movement_state != PlayerCharacter.MovementState.IDLE
 	var bob := sin(player.animation_time * (13.0 if moving else 4.0)) * (2.0 if moving else 0.7)
 	var accent := Color("f5c96a") if player.movement_state != PlayerCharacter.MovementState.RUN else Color("ffdf85")
+	if player.attack_flash_remaining > 0.0:
+		accent = Color("fff2b0")
+	if player.combat_state().invulnerability_remaining > 0.0 and int(player.animation_time * 20.0) % 2 == 0:
+		modulate = Color(1.0, 1.0, 1.0, 0.42)
+	else:
+		modulate = Color.WHITE
 	_draw_ellipse_shape(Vector2(0, 13), Vector2(15, 6), Color(0, 0, 0, 0.28))
 	var body := PackedVector2Array([
 		Vector2(-10, 4 + bob), Vector2(-7, -10 + bob), Vector2(0, -16 + bob),
